@@ -55,6 +55,8 @@
   .linkbox { font-family:ui-monospace, monospace; font-size:12px; word-break:break-all; background:#110e0c; padding:10px; border-radius:6px; border:1px dashed var(--gold); }
   .preview { max-width:220px; border-radius:8px; margin-top:10px; display:block; }
   .hidden { display:none !important; }
+  a.cardlink { display:block; color:inherit; text-decoration:none; transition:border-color .15s, transform .15s; }
+  a.cardlink:hover, a.cardlink:focus-visible { border-color:var(--gold); transform:translateY(-2px); }
   .empty { text-align:center; padding:30px; color:var(--muted); }
   .tabs2 { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
 </style>
@@ -259,13 +261,12 @@ async function pageHome() {
 // ---------- members ----------
 async function pageMembers() {
   const people = await sb.from('profiles').select('id,display_name,birthday,armies,wishlist').order('display_name').then(ok);
-  app.innerHTML = `<h1>Members</h1><div class="grid">${people.map(p => `<div class="card">
-    <a href="#member/${p.id}" class="row" style="gap:14px;margin-bottom:10px;text-decoration:none">${av(p.id, 60)}<h2 style="margin:0">${esc(p.display_name)}</h2></a>
+  app.innerHTML = `<h1>Members</h1><div class="grid">${people.map(p => `<a href="#member/${p.id}" class="card cardlink">
+    <div class="row" style="gap:14px;margin-bottom:10px">${av(p.id, 60)}<h2 style="margin:0">${esc(p.display_name)}</h2></div>
     <p class="muted" style="margin:0">🎂 ${dayMonth(p.birthday)}</p>
     ${p.armies ? `<h3 style="margin-top:12px">Armies</h3><div class="notes">${esc(p.armies)}</div>` : ''}
     ${p.wishlist ? `<h3 style="margin-top:12px">Wishlist</h3><div class="notes">${esc(p.wishlist)}</div>` : ''}
-    <a class="btn small ghost" href="#member/${p.id}">Collection &amp; record</a>
-  </div>`).join('')}</div>`;
+  </a>`).join('')}</div>`;
 }
 
 // ---------- profile ----------

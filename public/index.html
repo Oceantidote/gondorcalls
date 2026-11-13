@@ -1040,18 +1040,20 @@ async function pageMoney(arg, arg2) {
     sb.from('settlements').select('*').is('deleted_at', null).order('paid_on', { ascending: false }).order('created_at', { ascending: false }).limit(100).then(ok),
   ]);
   const name = uid => uid === me.id ? 'You' : esc(people.find(p => p.id === uid)?.display_name || '?');
-  const iOwe = pairs.filter(p => p.debtor === me.id), owedMe = pairs.filter(p => p.creditor === me.id);
-  const net = owedMe.reduce((a, p) => a + +p.amount, 0) - iOwe.reduce((a, p) => a + +p.amount, 0);
-  const toConfirm = setts.filter(s => s.to_user === me.id && !s.confirmed_at);
+  // Like Splitwise's "simplify debts": the simplified plan IS what people owe; raw pairwise debts are just the workings.
   const plan = simplifyDebts(pairs);
+  const iOwe = plan.filter(p => p.from === me.id), owedMe = plan.filter(p => p.to === me.id);
+  const net = owedMe.reduce((a, p) => a + p.amount, 0) - iOwe.reduce((a, p) => a + p.amount, 0);
+  const toConfirm = setts.filter(s => s.to_user === me.id && !s.confirmed_at);
+  const nets = {}; plan.forEach(p => { nets[p.from] = (nets[p.from] || 0) - p.amount; nets[p.to] = (nets[p.to] || 0) + p.amount; });
   const acts = [...feed.map(e => ({ t: 'x', d: e.spent_on, c: e.created_at, e })), ...setts.map(s => ({ t: 's', d: s.paid_on, c: s.created_at, s }))]
     .sort((a, b) => b.d.localeCompare(a.d) || b.c.localeCompare(a.c));
 
   app.innerHTML = `
   <div class="card"><div class="row"><h1 class="grow" style="margin:0">Money</h1><a class="btn small" href="#money/new">+ Add expense</a><a class="btn small ghost" href="#money/pay">Record a payment</a></div>
     <p style="font-size:20px;margin:14px 0 4px">${Math.abs(net) < 0.005 ? 'You\'re all square.' : net > 0 ? `Overall you're owed <b style="color:var(--ok)">${money_(net)}</b>` : `Overall you owe <b style="color:#e0a070">${money_(-net)}</b>`}</p>
-    ${iOwe.length || owedMe.length ? `<table style="margin-top:8px">${iOwe.map(p => `<tr><td>You owe <b>${name(p.creditor)}</b></td><td>${money_(p.amount)}</td><td style="text-align:right"><a class="btn small" href="#money/pay/${p.creditor}">I've paid</a></td></tr>`).join('')}
-      ${owedMe.map(p => `<tr><td><b>${name(p.debtor)}</b> owes you</td><td>${money_(p.amount)}</td><td style="text-align:right"><a class="btn small ghost" href="#money/pay/${p.debtor}">They've paid me</a></td></tr>`).join('')}</table>` : ''}
+    ${iOwe.length || owedMe.length ? `<table style="margin-top:8px">${iOwe.map(p => `<tr><td>Pay <b>${name(p.to)}</b></td><td>${money_(p.amount)}</td><td style="text-align:right"><a class="btn small" href="#money/pay/${p.to}">I've paid</a></td></tr>`).join('')}
+      ${owedMe.map(p => `<tr><td><b>${name(p.from)}</b> pays you</td><td>${money_(p.amount)}</td><td style="text-align:right"><a class="btn small ghost" href="#money/pay/${p.from}">They've paid me</a></td></tr>`).join('')}</table>` : ''}
     <p class="muted" style="font-size:13px;margin-bottom:0">Paying happens by bank transfer as usual. This just records it.</p>
   </div>
 
@@ -1059,9 +1061,9 @@ async function pageMoney(arg, arg2) {
     <td style="text-align:right;white-space:nowrap"><button class="btn small" data-conf="${s.id}">Yes, got it</button> <button class="btn small ghost" data-sdel="${s.id}">No</button></td></tr>`).join('')}</table></div>` : ''}
 
   <div class="card"><h2>Everyone</h2>
-    ${pairs.length ? `<table>${pairs.slice().sort((a, b) => b.amount - a.amount).map(p => `<tr><td>${name(p.debtor)} → ${name(p.creditor)}</td><td style="text-align:right">${money_(p.amount)}</td></tr>`).join('')}</table>
-      ${plan.length < pairs.length ? `<h3 style="margin-top:16px">Quickest way to settle everything (${plan.length} payment${plan.length === 1 ? '' : 's'})</h3><table>${plan.map(p => `<tr><td>${name(p.from)} pays ${name(p.to)}</td><td style="text-align:right">${money_(p.amount)}</td></tr>`).join('')}</table>
-        <p class="muted" style="font-size:13px">Paying someone you don't directly owe is fine: the balances above work it out.</p>` : ''}` : '<p class="muted" style="margin:0">Nobody owes anybody anything.</p>'}
+    ${plan.length ? `<table>${plan.map(p => `<tr><td>${name(p.from)} pays ${name(p.to)}</td><td style="text-align:right">${money_(p.amount)}</td></tr>`).join('')}</table>
+      <p class="muted" style="font-size:13px">Debts are simplified so the group settles in as few payments as possible (${plan.length} right now). It's fine to pay someone you never shared a bill with: the totals all work out.</p>
+      <details><summary class="muted" style="cursor:pointer;font-size:13px">Overall position per person</summary><table style="margin-top:6px">${Object.entries(nets).sort((a, b) => b[1] - a[1]).map(([u, v]) => `<tr><td>${name(u)}</td><td style="text-align:right;color:${v > 0 ? 'var(--ok)' : '#e0a070'}">${v > 0 ? 'owed ' : 'owes '}${money_(Math.abs(v))}</td></tr>`).join('')}</table></details>` : '<p class="muted" style="margin:0">Nobody owes anybody anything.</p>'}
   </div>
 
   <div class="card"><h2>Activity</h2>
@@ -1080,8 +1082,8 @@ async function pageMoney(arg, arg2) {
 
 async function pageSettle(other) {
   const [people, pairs] = await Promise.all([sb.from('profiles').select('id,display_name').order('display_name').then(ok), rpc('ledger_balances')]);
-  const others = people.filter(p => p.id !== me.id);
-  const owes = (d, c) => +(pairs.find(p => p.debtor === d && p.creditor === c)?.amount || 0);
+  const others = people.filter(p => p.id !== me.id), plan = simplifyDebts(pairs);
+  const owes = (d, c) => +(plan.find(p => p.from === d && p.to === c)?.amount || 0);
   app.innerHTML = `<p><a href="#money" class="muted">← Money</a></p><div class="card narrow" style="margin-top:0"><h1>Record a payment</h1>
     <form id="sf">
       <label for="sdir">What happened?</label><select id="sdir" style="width:100%;padding:10px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px"><option value="out">I paid someone</option><option value="in">Someone paid me</option></select>
@@ -1094,7 +1096,7 @@ async function pageSettle(other) {
   const sync = () => {
     const w = $('#swho').value, out = $('#sdir').value === 'out', due = out ? owes(me.id, w) : owes(w, me.id);
     if (due && !$('#samt').dataset.touched) $('#samt').value = due.toFixed(2);
-    $('#shint').textContent = (due ? (out ? `You owe them ${money_(due)}. ` : `They owe you ${money_(due)}. `) : '') + (out ? 'They\'ll be asked to confirm it arrived.' : 'This counts as confirmed, since you received it.');
+    $('#shint').textContent = (due ? (out ? `You're due to pay them ${money_(due)}. ` : `They're due to pay you ${money_(due)}. `) : '') + (out ? 'They\'ll be asked to confirm it arrived.' : 'This counts as confirmed, since you received it.');
   };
   if (other && owes(other, me.id) && !owes(me.id, other)) $('#sdir').value = 'in';
   $('#samt').oninput = () => { $('#samt').dataset.touched = 1; };

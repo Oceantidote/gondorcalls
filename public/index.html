@@ -5,14 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gondor Calls</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0d1117">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
-  :root { --bg:#14110f; --panel:#1f1a16; --panel2:#2a231d; --line:#3d332a; --gold:#d4a64a; --gold2:#f0cf85; --red:#a8322d; --text:#ece3d4; --muted:#a39684; --ok:#6fa86b; }
+  :root { /* Midnight & silver. (--gold is the accent colour; the name is historical.) */
+    --bg:#0d1117; --panel:#161c26; --panel2:#1b2230; --line:#2a3342; --gold:#6aa9ff; --gold2:#c9d3e0; --red:#e5534b; --text:#e6eaf0; --muted:#8b96a8; --ok:#3fb950; --warn:#e3b341; --input:#0b0f15; }
   * { box-sizing: border-box; }
-  body { margin:0; background: radial-gradient(ellipse at top, #2a1a16 0%, var(--bg) 60%) fixed; color:var(--text); font:15px/1.5 Inter, system-ui, sans-serif; min-height:100vh; }
+  body { margin:0; background: radial-gradient(ellipse at top, #152033 0%, var(--bg) 55%) fixed; color:var(--text); font:15px/1.5 Inter, system-ui, sans-serif; min-height:100vh; }
   header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; max-width:1000px; margin:0 auto; padding:20px 16px 8px; }
-  .brand { font-family:Cinzel, serif; font-weight:800; color:var(--gold); font-size:26px; letter-spacing:.06em; text-decoration:none; text-shadow:0 2px 0 #000; }
+  .brand { display:inline-flex; align-items:center; gap:10px; font-family:'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight:700; color:var(--text); font-size:28px; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; }
+  .brand img { width:34px; height:34px; display:block; }
+  .brand b { color:var(--gold); font-weight:700; }
   nav { display:flex; align-items:center; gap:4px; }
   .nav-main { display:flex; align-items:center; gap:2px; }
   nav a, .dd-btn { color:var(--muted); text-decoration:none; font:600 14px Inter, sans-serif; padding:8px 12px; border-bottom:2px solid transparent; background:none; border-top:0; border-left:0; border-right:0; cursor:pointer; }
@@ -24,21 +32,21 @@
   .dd { display:none; position:absolute; right:0; top:calc(100% + 6px); min-width:190px; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,.55); padding:6px 0; z-index:40; }
   .dd-wrap.open .dd { display:block; }
   .dd a { display:block; padding:9px 16px; border:0; color:var(--text); }
-  .dd a:hover { background:rgba(212,166,74,.1); }
-  .dd a.on { color:var(--gold); background:rgba(212,166,74,.12); }
+  .dd a:hover { background:rgba(106,169,255,.1); }
+  .dd a.on { color:var(--gold); background:rgba(106,169,255,.12); }
   .dd-h { padding:6px 16px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
   main { max-width:1000px; margin:0 auto; padding:12px 16px 64px; }
-  .card { background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:16px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.35); }
   .narrow { max-width:440px; margin:40px auto; }
-  h1 { font-family:Cinzel, serif; color:var(--gold); margin:0 0 16px; font-size:28px; }
-  h2 { font-family:Cinzel, serif; color:var(--gold2); margin:0 0 12px; font-size:20px; }
+  h1 { font-family:'Barlow Condensed', 'Arial Narrow', sans-serif; color:var(--text); margin:0 0 16px; font-size:34px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; line-height:1.1; }
+  h2 { font-family:'Barlow Condensed', 'Arial Narrow', sans-serif; color:var(--gold2); margin:0 0 12px; font-size:23px; font-weight:600; letter-spacing:.02em; }
   h3 { margin:0 0 8px; font-size:16px; }
   label { display:block; font-weight:600; font-size:13px; color:var(--muted); margin:12px 0 4px; }
   input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], textarea {
-    width:100%; padding:10px 12px; background:#110e0c; border:1px solid var(--line); color:var(--text); border-radius:8px; font:inherit; color-scheme:dark; }
+    width:100%; padding:10px 12px; background:var(--input); border:1px solid var(--line); color:var(--text); border-radius:8px; font:inherit; color-scheme:dark; }
   textarea { min-height:90px; resize:vertical; }
   input:focus, textarea:focus { outline:2px solid var(--gold); outline-offset:1px; }
-  .btn { display:inline-block; margin-top:14px; background:var(--gold); color:#1a130b; border:0; padding:10px 18px; border-radius:8px; font:600 14px Inter, sans-serif; cursor:pointer; text-decoration:none; }
+  .btn { display:inline-block; margin-top:14px; background:var(--gold); color:#08111f; border:0; padding:10px 18px; border-radius:8px; font:600 14px Inter, sans-serif; cursor:pointer; text-decoration:none; }
   .btn.ghost { background:transparent; color:var(--gold); border:1px solid var(--gold); }
   .btn.danger { background:var(--red); color:#fff; }
   .btn.small { padding:6px 12px; margin-top:0; font-size:13px; }
@@ -47,63 +55,64 @@
   .grow { flex:1; min-width:200px; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
   .muted { color:var(--muted); }
-  .big-name { font-family:Cinzel, serif; font-size:clamp(28px,6vw,44px); color:var(--gold); margin:4px 0 8px; }
-  .notes { white-space:pre-wrap; background:#110e0c; border-left:3px solid var(--gold); padding:10px 14px; border-radius:6px; }
+  .big-name { font-family:'Barlow Condensed', 'Arial Narrow', sans-serif; font-size:clamp(28px,6vw,44px); color:var(--gold); margin:4px 0 8px; }
+  .notes { white-space:pre-wrap; background:var(--input); border-left:3px solid var(--gold); padding:10px 14px; border-radius:6px; }
   .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid var(--line); }
   .pill.ok { color:var(--ok); border-color:var(--ok); } .pill.gold { color:var(--gold); border-color:var(--gold); }
   table { width:100%; border-collapse:collapse; }
   td, th { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
   th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
   .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
-  .mini { background:#110e0c; border:1px solid var(--line); border-radius:12px; overflow:hidden; cursor:zoom-in; }
+  .mini { background:var(--input); border:1px solid var(--line); border-radius:12px; overflow:hidden; cursor:zoom-in; }
   .mini img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#000; }
   .mini div { padding:10px 12px; } .mini b { display:block; }
-  .year-h { font-family:Cinzel, serif; color:var(--gold); font-size:24px; margin:20px 0 10px; border-bottom:1px solid var(--line); }
+  .year-h { font-family:'Barlow Condensed', 'Arial Narrow', sans-serif; color:var(--gold); font-size:24px; margin:20px 0 10px; border-bottom:1px solid var(--line); }
   .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#000; border:1px solid var(--gold); color:var(--text); padding:12px 18px; border-radius:10px; max-width:90vw; z-index:50; }
   .toast.err { border-color:var(--red); }
   .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.92); display:flex; align-items:center; justify-content:center; z-index:40; cursor:zoom-out; padding:20px; flex-direction:column; }
   .lightbox img { max-width:100%; max-height:82vh; border-radius:8px; }
-  .linkbox { font-family:ui-monospace, monospace; font-size:12px; word-break:break-all; background:#110e0c; padding:10px; border-radius:6px; border:1px dashed var(--gold); }
+  .linkbox { font-family:ui-monospace, monospace; font-size:12px; word-break:break-all; background:var(--input); padding:10px; border-radius:6px; border:1px dashed var(--gold); }
   .preview { max-width:220px; border-radius:8px; margin-top:10px; display:block; }
   .hidden { display:none !important; }
-  select { padding:10px; background:#110e0c; color:var(--text); border:1px solid var(--line); border-radius:8px; font:inherit; color-scheme:dark; max-width:100%; }
+  select { padding:10px; background:var(--input); color:var(--text); border:1px solid var(--line); border-radius:8px; font:inherit; color-scheme:dark; max-width:100%; }
   .card { overflow-x:auto; }
   .burger { display:none; background:transparent; border:1px solid var(--line); border-radius:10px; width:46px; height:42px; padding:0; cursor:pointer; line-height:0; -webkit-appearance:none; appearance:none; }
   .burger svg { display:block; margin:auto; }
   .burger .ico-close, .burger[aria-expanded=true] .ico-open { display:none; }
   .burger[aria-expanded=true] .ico-close { display:block; }
   @media (max-width: 760px) {
-    header { padding:12px 16px 4px; flex-wrap:nowrap; position:sticky; top:0; z-index:30; background:rgba(20,17,15,.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
+    header { padding:12px 16px 4px; flex-wrap:nowrap; position:sticky; top:0; z-index:30; background:rgba(13,17,23,.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
     .brand { font-size:22px; }
     .burger { display:block; }
-    nav { display:none; position:absolute; left:0; right:0; top:100%; flex-direction:column; gap:0; background:var(--panel); border-bottom:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.6); max-height:calc(100vh - 70px); overflow-y:auto; padding:6px 0; }
+    nav { display:none; position:absolute; left:0; right:0; top:100%; flex-direction:column; align-items:stretch; gap:0; background:var(--panel); border-bottom:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.6); max-height:calc(100vh - 70px); overflow-y:auto; padding:6px 0; }
     nav.open { display:flex; }
     .nav-main { flex-direction:column; align-items:stretch; gap:0; }
     .dd-btn { display:none; }
+    .dd-wrap { width:100%; }
     .dd, .dd-wrap.open .dd { display:block; position:static; box-shadow:none; border:0; border-radius:0; padding:0; background:none; min-width:0; }
     .dd-h { padding:14px 20px 4px; border-top:1px solid var(--line); }
     nav a, .dd a { display:block; border:0; border-radius:0; padding:13px 20px; font-size:16px; color:var(--text); }
-    nav a.on, .dd a.on { background:rgba(212,166,74,.15); color:var(--gold); }
+    nav a.on, .dd a.on { background:rgba(106,169,255,.15); color:var(--gold); }
     main { padding:12px 12px 64px; }
     .card { padding:16px; }
-    h1 { font-size:24px; }
+    h1 { font-size:28px; }
     input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], textarea, select { font-size:16px; }
     .btn.small { padding:10px 14px; min-height:40px; }
     .grow { min-width:0; flex-basis:100%; }
     td, th { padding:8px 4px; }
   }
-  a.cardlink { display:block; color:inherit; text-decoration:none; transition:border-color .15s, transform .15s; }
-  a.cardlink:hover, a.cardlink:focus-visible { border-color:var(--gold); transform:translateY(-2px); }
+  .cardlink { display:block; color:inherit; text-decoration:none; cursor:pointer; transition:border-color .15s, transform .15s; }
+  .cardlink:hover, .cardlink:focus-visible { border-color:var(--gold); transform:translateY(-2px); outline:none; }
   .empty { text-align:center; padding:30px; color:var(--muted); }
   .tabs2 { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
 <header id="hdr" class="hidden">
-  <a class="brand" href="#home">Gondor Calls</a>
+  <a class="brand" href="#home"><img src="/logo.svg" alt="">Gondor <b>Calls</b></a>
   <button id="burger" class="burger" aria-label="Menu" aria-expanded="false" aria-controls="nav">
-    <svg class="ico-open" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="#d4a64a" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
-    <svg class="ico-close" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="#d4a64a" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
+    <svg class="ico-open" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="#c9d3e0" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
+    <svg class="ico-close" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="#c9d3e0" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
   </button>
   <nav id="nav"></nav>
 </header>
@@ -140,7 +149,7 @@ function av(uid, size = 22) {
   const p = PEOPLE[uid] || {}, n = p.display_name || '?';
   const st = `width:${size}px;height:${size}px;border-radius:50%;flex:none;vertical-align:middle;display:inline-flex;border:1px solid var(--line);`;
   return p.avatar_path ? `<img class="av" src="${photoUrl(p.avatar_path)}" alt="" title="${esc(n)}" loading="lazy" style="${st}object-fit:cover;background:#000">`
-    : `<span class="av" title="${esc(n)}" style="${st}align-items:center;justify-content:center;background:hsl(${hue(uid)} 32% 30%);color:#f3e7d3;font:700 ${Math.max(9, Math.round(size * .4))}px Inter,sans-serif;letter-spacing:0">${esc(initials(n))}</span>`;
+    : `<span class="av" title="${esc(n)}" style="${st}align-items:center;justify-content:center;background:hsl(${hue(uid)} 32% 30%);color:#eef3fa;font:700 ${Math.max(9, Math.round(size * .4))}px Inter,sans-serif;letter-spacing:0">${esc(initials(n))}</span>`;
 }
 const who = (uid, label) => `<span style="white-space:nowrap">${av(uid, 20)} ${label ?? esc(PEOPLE[uid]?.display_name || '?')}</span>`;
 // Square-crop and shrink a picture for use as an avatar.
@@ -201,6 +210,14 @@ function drawNav(active) {
   $('#signout').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); me = null; location.hash = ''; route(); };
   setMenu(false);
   document.title = (({ home: '', santa: 'Secret Santa', fame: 'Hall of fame', profile: 'My profile' })[active] ?? (active ? active[0].toUpperCase() + active.slice(1) : '')) + (active && active !== 'home' ? ' · ' : '') + SITE_NAME;
+}
+// Cards that open a page when clicked anywhere (inner links still work on their own).
+function wireCardLinks(root) {
+  $$('.cardlink[data-go]', root).forEach(c => {
+    c.tabIndex = 0; c.setAttribute('role', 'link');
+    c.onclick = e => { if (!e.target.closest('a,button,input,select,textarea,label')) location.hash = c.dataset.go; };
+    c.onkeydown = e => { if (e.key === 'Enter' && e.target === c) location.hash = c.dataset.go; };
+  });
 }
 // Mobile menu
 function setMenu(open) { $('#nav').classList.toggle('open', open); $('#burger').setAttribute('aria-expanded', String(open)); if (!open) closeDropdowns(); }
@@ -291,34 +308,32 @@ async function pageHome() {
   const vAsk = vdir.filter(v => v.stage === 'proposal' && !v.my_response), vMine = vdir.filter(v => v.i_am_member && ['chartering', 'active'].includes(v.stage));
   const missing = people.filter(p => !p.birthday).map(p => p.display_name);
   app.innerHTML = `<h1>Hail, ${esc(me.display_name)}</h1>
-  ${!me.birthday ? `<div class="card"><b>Add your birthday</b> so the group can plan your present. <a href="#profile" class="btn small" style="margin-left:8px">Edit profile</a></div>` : ''}
+  ${!me.birthday ? `<a class="card cardlink" href="#profile"><b>Add your birthday</b> so the group can plan your present. <span style="color:var(--gold)">Edit profile →</span></a>` : ''}
   <div class="grid">
-    <div class="card"><h2>Upcoming birthdays</h2>
+    <div class="card cardlink" data-go="birthdays"><h2>Upcoming birthdays</h2>
       ${bdays.length ? `<table>${bdays.slice(0, 5).map(p => `<tr><td>${who(p.id)}</td><td>${dayMonth(p.birthday)}</td><td class="muted">${p.nb.days === 0 ? '<span class="pill gold">Today!</span>' : `in ${p.nb.days} days`}</td></tr>`).join('')}</table>` : '<p class="muted">No birthdays added yet.</p>'}
       ${missing.length ? `<p class="muted" style="font-size:13px">Not added yet: ${esc(missing.join(', '))}</p>` : ''}
-      <a class="btn small ghost" href="#birthdays">Gift planning</a>
     </div>
-    <div class="card"><h2>Secret Santa</h2>
+    <div class="card cardlink" data-go="santa"><h2>Secret Santa</h2>
       ${santa ? `<p>${santa.year}: you're painting for <b>${esc(people.find(p => p.id === santa.receiver_id)?.display_name)}</b>. ${santa.photo_path ? '<span class="pill ok">Done</span>' : ''}</p>` : '<p class="muted">No draw yet this year.</p>'}
-      <a class="btn small" href="#santa">Open Secret Santa</a>
     </div>
-    <div class="card" id="homechal"><h2>Painting challenge</h2><p class="muted" style="margin:0">Loading…</p></div>
-    <div class="card"><h2>Next meetup</h2>
-      ${nm ? `<p><b>${esc(nm.title)}</b> ${statusPill(nm.status)}<br><span class="muted">${fmtRange(nm.start_date, nm.end_date)}</span></p><a class="btn small" href="#meetup/${nm.id}">Open</a>`
-        : '<p class="muted">Nothing planned.</p><a class="btn small ghost" href="#meetups">Plan one</a>'}
+    <div class="card cardlink" id="homechal" data-go="painting"><h2>Painting challenge</h2><p class="muted" style="margin:0">Loading…</p></div>
+    <div class="card cardlink" data-go="${nm ? 'meetup/' + nm.id : 'meetups'}"><h2>Next meetup</h2>
+      ${nm ? `<p style="margin:0"><b>${esc(nm.title)}</b> ${statusPill(nm.status)}<br><span class="muted">${fmtRange(nm.start_date, nm.end_date)}</span></p>`
+        : '<p class="muted" style="margin:0">Nothing planned yet. Start one.</p>'}
     </div>
-    <div class="card"><h2>Ventures</h2>
+    <div class="card cardlink" data-go="ventures"><h2>Ventures</h2>
       ${vAsk.length ? `<p><b>${vAsk.length} proposal${vAsk.length > 1 ? 's' : ''} waiting for your answer:</b> ${vAsk.map(v => `<a href="#venture/${v.id}" style="color:var(--gold)">${esc(v.title)}</a>`).join(', ')}</p>` : ''}
       ${vMine.length ? `<p>Yours: ${vMine.map(v => `<a href="#venture/${v.id}" style="color:var(--gold)">${esc(v.title)}</a>${v.stage === 'chartering' ? ' <span class="pill">charter</span>' : ''}`).join(', ')}</p>` : ''}
       ${!vAsk.length && !vMine.length ? '<p class="muted">Nothing needs you right now.</p>' : ''}
-      <a class="btn small ghost" href="#ventures">Open ventures</a>
     </div>
-    <div class="card"><h2>Money</h2>
-      <p>${Math.abs(myNet) < 0.005 ? '<span class="muted">You\'re all square.</span>' : myNet > 0 ? `You're owed <b style="color:var(--ok)">${money_(myNet)}</b>` : `You owe <b style="color:#e0a070">${money_(-myNet)}</b>`}</p>
-      <a class="btn small" href="#money/new">+ Add expense</a> <a class="btn small ghost" href="#money">Balances</a>
+    <div class="card cardlink" data-go="money"><h2>Money</h2>
+      <p>${Math.abs(myNet) < 0.005 ? '<span class="muted">You\'re all square.</span>' : myNet > 0 ? `You're owed <b style="color:var(--ok)">${money_(myNet)}</b>` : `You owe <b style="color:var(--warn)">${money_(-myNet)}</b>`}</p>
     </div>
-    <div class="card"><h2>The group</h2><p>${people.length} members.</p><a class="btn small ghost" href="#members">See everyone</a></div>
+    <div class="card cardlink" data-go="members"><h2>The group</h2><p style="margin:0">${people.length} members.</p>
+      <div style="display:flex;gap:4px;margin-top:10px;flex-wrap:wrap">${people.map(p => av(p.id, 30)).join('')}</div></div>
   </div>`;
+  wireCardLinks(app);
   loadChallenges().then(({ chals, entries, cur }) => {
     const c = chals.find(x => x.month === cur), e = entries.find(x => x.month === cur && x.user_id === me.id);
     const owed = roundsOwed(chals, entries, cur).filter(o => o.user_id === me.id).length;
@@ -327,8 +342,7 @@ async function pageHome() {
       ${c?.theme ? `<p style="font-size:18px;margin:0 0 6px"><b>${esc(c.theme)}</b></p>
         <p style="margin:0">${e?.finished_at ? '<span style="color:var(--ok)">✅ You\'re done.</span>' : e?.opted_out ? '<span class="muted">You\'re sitting this one out.</span>' : `⏳ ${left} day${left === 1 ? '' : 's'} left to upload yours.`}</p>`
         : `<p style="margin:0">${c?.setter === me.id ? '<b>It\'s your turn to pick the theme.</b>' : `Waiting for ${who(c?.setter)} to pick.`}</p>`}
-      ${owed ? `<p style="margin:8px 0 0;color:#e0a070">🍺 You owe ${owed} round${owed === 1 ? '' : 's'}.</p>` : ''}
-      <a class="btn small${c?.theme && !e?.finished_at ? '' : ' ghost'}" href="#painting">Open painting</a>`;
+      ${owed ? `<p style="margin:8px 0 0;color:var(--warn)">🍺 You owe ${owed} round${owed === 1 ? '' : 's'}.</p>` : ''}`;
   }).catch(() => $('#homechal').remove());
 }
 
@@ -350,8 +364,7 @@ async function pageProfile() {
     <div class="row" style="gap:18px">${av(me.id, 96)}
       <div><input type="file" id="avf" accept="image/*"><p class="muted" style="font-size:13px;margin:6px 0 0">A square crop from the middle of the picture is used. Your face, your army, your best model: up to you.</p>
       ${PEOPLE[me.id]?.avatar_path ? '<button class="btn small ghost" id="avdel" style="margin-top:10px">Remove picture</button>' : ''}</div></div></div>
-  <div class="card"><div class="row"><div class="grow"><h2 style="margin:0">Army rosters</h2><p class="muted" style="margin:6px 0 0;font-size:13px">Upload an export from the Warhammer app for each army. Re-uploading an army replaces it.</p></div>
-    <a class="btn small" href="#member/${me.id}">Manage my armies</a></div></div>
+  <a class="card cardlink" href="#member/${me.id}"><h2 style="margin:0">Army rosters <span style="color:var(--gold);font-size:18px">→</span></h2><p class="muted" style="margin:6px 0 0;font-size:13px">Upload an export from the Warhammer app for each army. Re-uploading an army replaces it.</p></a>
   <div class="card"><form id="pf">
     <label for="nm">Name</label><input type="text" id="nm" maxlength="40" value="${esc(me.display_name)}" required>
     <label for="bd">Birthday</label><input type="date" id="bd" value="${esc(me.birthday || '')}">
@@ -466,7 +479,7 @@ async function pageMeetups() {
   const rows = await sb.from('meetups').select('id,title,status,start_date,end_date,venue:meetup_venues!meetups_venue_fk(name)').order('start_date', { ascending: false, nullsFirst: true }).then(ok);
   const live = rows.filter(m => (m.status === 'planning' || m.status === 'confirmed') && (!m.start_date || (m.end_date || m.start_date) >= todayISO()));
   const past = rows.filter(m => !live.includes(m));
-  const card = m => `<a class="card" href="#meetup/${m.id}" style="display:block;text-decoration:none;color:inherit">
+  const card = m => `<a class="card cardlink" href="#meetup/${m.id}">
     <div class="row"><h2 class="grow" style="margin:0">${esc(m.title)}</h2>${statusPill(m.status)}</div>
     <p class="muted" style="margin:6px 0 0">${fmtRange(m.start_date, m.end_date)}${m.venue ? ' · ' + esc(m.venue.name) : ''}</p></a>`;
   app.innerHTML = `<div class="row"><h1 class="grow">Meetups</h1><button class="btn small" id="newm">+ New meetup</button></div>
@@ -520,7 +533,7 @@ async function pageMeetup(id) {
       <label for="ed">Plan</label><textarea id="ed" maxlength="3000">${esc(m.description)}</textarea>
       <label for="edt">Address &amp; arrival details (door codes, check-in time, parking)</label><textarea id="edt" maxlength="3000">${esc(m.details)}</textarea>
       <div class="row"><div><label for="es">Starts</label><input type="date" id="es" value="${m.start_date || ''}"></div><div><label for="ee">Ends</label><input type="date" id="ee" value="${m.end_date || ''}"></div>
-      <div><label for="est">Status</label><select id="est" style="padding:10px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px">${['planning','confirmed','done','cancelled'].map(s => `<option ${s === m.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div></div>
+      <div><label for="est">Status</label><select id="est" style="padding:10px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:8px">${['planning','confirmed','done','cancelled'].map(s => `<option ${s === m.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div></div>
       <button class="btn" id="esave">Save</button> <button type="button" class="btn danger" id="edel">Delete meetup</button>
     </form>` : ''}
   </div>
@@ -536,7 +549,7 @@ async function pageMeetup(id) {
     ${opts.length ? `<div style="overflow-x:auto"><table><tr><th>Dates</th>${people.map(p => `<th style="text-align:center">${av(p.id, 26)}<br>${esc(p.display_name)}</th>`).join('')}<th>Yes</th><th></th></tr>
       ${opts.map(o => { const vs = votes.filter(v => v.option_id === o.id), yes = vs.filter(v => v.answer === 'yes').length;
         const chosen = m.start_date === o.start_date && m.end_date === o.end_date;
-        return `<tr${chosen ? ' style="background:rgba(212,166,74,.12)"' : ''}><td>${fmtRange(o.start_date, o.end_date)}${chosen ? ' <span class="pill gold">chosen</span>' : ''}</td>
+        return `<tr${chosen ? ' style="background:rgba(106,169,255,.12)"' : ''}><td>${fmtRange(o.start_date, o.end_date)}${chosen ? ' <span class="pill gold">chosen</span>' : ''}</td>
         ${people.map(p => { const a = vs.find(v => v.user_id === p.id)?.answer;
           return p.id === me.id ? `<td style="text-align:center"><button class="btn small ghost" data-vote="${o.id}" data-cur="${a || ''}" title="Change my answer">${icon(a)}</button></td>` : `<td style="text-align:center">${icon(a)}</td>`; }).join('')}
         <td><b>${yes}</b>/${people.length}</td>
@@ -576,7 +589,7 @@ async function pageMeetup(id) {
   ${m.status !== 'cancelled' && (!m.end_date || m.end_date >= todayISO()) ? '<div class="card" id="rounds"></div>' : ''}
   <div class="card" id="costs"><h2>Costs</h2><p class="muted">Loading…</p></div>
   ${m.start_date && m.start_date <= todayISO() && m.status !== 'cancelled' ? `<div class="card" id="awards"></div>
-  <div class="card"><div class="row"><h2 class="grow" style="margin:0">Games played here</h2><a class="btn small" href="#games/new/${m.id}">+ Log a game</a></div><p class="muted" style="margin:8px 0 0">Results go into the <a href="#games" style="color:var(--gold)">league</a>.</p></div>` : ''}
+  <a class="card cardlink" href="#games/new/${m.id}"><h2 style="margin:0">Log a game played here <span style="color:var(--gold);font-size:18px">→</span></h2><p class="muted" style="margin:8px 0 0">Results go into the league.</p></a>` : ''}
 
   <div class="card"><h2>Photos</h2>
     ${photos.length ? `<div class="gallery">${photos.map(p => `<div class="mini" data-src="${photoUrl(p.path)}" data-cap="${esc(p.caption)}">
@@ -718,7 +731,7 @@ async function pageGift(id) {
   ${g.status === 'planning' ? `<div class="card"><h2>Ideas</h2>
     ${ranked.length ? `<table>${ranked.map(i => { const mine = i.vs.some(v => v.user_id === me.id);
       return `<tr><td>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" style="color:var(--gold2)">${esc(i.title)} ↗</a>` : esc(i.title)}
-        ${i.price != null ? `<span class="muted"> · ${money(i.price)}${Number(i.price) > pot ? ' (over the pot)' : ''}</span>` : ''}<br><span class="muted" style="font-size:13px">by ${name(i.added_by)}${i.vs.length ? ' · 👍 ' + i.vs.map(v => who(v.user_id)).join(' ') : ''}</span>${(() => { const o = alreadyOwns(coll, i.title); return o.length ? `<br><span style="color:#e0a070;font-size:13px">⚠ ${esc(r.display_name)} already owns ${o.map(x => esc(x.unit_name) + (x.models > 1 ? ' ×' + x.models : '')).join(', ')}</span>` : ''; })()}</td>
+        ${i.price != null ? `<span class="muted"> · ${money(i.price)}${Number(i.price) > pot ? ' (over the pot)' : ''}</span>` : ''}<br><span class="muted" style="font-size:13px">by ${name(i.added_by)}${i.vs.length ? ' · 👍 ' + i.vs.map(v => who(v.user_id)).join(' ') : ''}</span>${(() => { const o = alreadyOwns(coll, i.title); return o.length ? `<br><span style="color:var(--warn);font-size:13px">⚠ ${esc(r.display_name)} already owns ${o.map(x => esc(x.unit_name) + (x.models > 1 ? ' ×' + x.models : '')).join(', ')}</span>` : ''; })()}</td>
         <td style="text-align:right;white-space:nowrap"><button class="btn small ${mine ? '' : 'ghost'}" data-iv="${i.id}" data-on="${mine}">👍 ${i.vs.length}</button>
         ${i.added_by === me.id || me.is_admin ? `<button class="btn small ghost" data-deli="${i.id}">✕</button>` : ''}</td></tr>`; }).join('')}</table>` : '<p class="muted" style="margin-top:0">No ideas yet. Check their wishlist above.</p>'}
     <form id="idf" style="margin-top:12px"><div class="row"><input type="text" id="it" class="grow" maxlength="160" placeholder="Idea, e.g. Combat Patrol: Necrons" required>
@@ -778,7 +791,7 @@ async function pageGift(id) {
 // ---------- ventures ----------
 const vStagePill = s => ({ idea: '<span class="pill">Idea</span>', proposal: '<span class="pill gold">Proposal</span>', declined: '<span class="pill">Withdrawn</span>',
   chartering: '<span class="pill gold">Agreeing charter</span>', active: '<span class="pill ok">Active</span>', closed: '<span class="pill">Closed</span>' })[s] || '';
-const healthPill = h => ({ on_track: '<span class="pill ok">On track</span>', at_risk: '<span class="pill gold">At risk</span>', off_track: '<span class="pill" style="color:#e07a70;border-color:#e07a70">Off track</span>' })[h] || '';
+const healthPill = h => ({ on_track: '<span class="pill ok">On track</span>', at_risk: '<span class="pill gold">At risk</span>', off_track: '<span class="pill" style="color:var(--red);border-color:var(--red)">Off track</span>' })[h] || '';
 const respLabel = { in: "🙋 I'm in", support: '👍 Support, not joining', concern: '⚠️ Concern' };
 const PROPOSAL_FIELDS = [
   ['problem', 'The problem', 'What is wrong or missing today, and for whom?'],
@@ -803,7 +816,7 @@ async function pageVentures() {
       ${v.summary ? `<div class="muted" style="font-size:14px;margin-top:4px">${esc(v.summary)}</div>` : ''}
       <div class="muted" style="font-size:13px;margin-top:4px">${v.stage === 'proposal' ? `🙋 ${v.ins} in · 👍 ${v.supports} · ⚠️ ${v.concerns}${v.decide_by ? ' · decide by ' + dayMonth(v.decide_by) : ''}`
         : v.members.length ? 'Members: ' + esc(v.members.join(', ')) : ''}${!open ? ' · 🔒 private to its members' : ''}</div>`;
-    return open ? `<a href="#venture/${v.id}" class="card" style="display:block;text-decoration:none;color:inherit;margin-bottom:10px;padding:14px 16px">${inner}</a>`
+    return open ? `<a href="#venture/${v.id}" class="card cardlink" style="margin-bottom:10px;padding:14px 16px">${inner}</a>`
       : `<div class="card" style="margin-bottom:10px;padding:14px 16px;opacity:.8">${inner}</div>`;
   };
   app.innerHTML = `<div class="row"><h1 class="grow">Ventures</h1><button class="btn small" id="newv">+ New idea</button></div>
@@ -922,7 +935,7 @@ async function ventureWorkspace(v, people, name, tab) {
   const reload = () => pageVenture(id, tab);
   const run = (b, fn) => busy(b, async () => { await fn(); await reload(); });
   const ownerSel = (idAttr, cur, blank = 'Nobody yet') => `<select id="${idAttr}" class="sel">${`<option value="">${blank}</option>`}${members.map(m => `<option value="${m.user_id}" ${m.user_id === cur ? 'selected' : ''}>${name(m.user_id)}</option>`).join('')}</select>`;
-  const selStyle = 'padding:8px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px';
+  const selStyle = 'padding:8px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:8px';
 
   if (tab === 'overview') {
     const [tasks, feats, ups, money] = await Promise.all([
@@ -1002,7 +1015,7 @@ async function ventureWorkspace(v, people, name, tab) {
         <select id="fp" style="${selStyle}"><option value="1">🔴 High</option><option value="2" selected>🟡 Medium</option><option value="3">⚪ Low</option></select>${ownerSel('fo', null, 'No owner').replace('class="sel"', `style="${selStyle}"`)}
         <button class="btn small" id="fgo">Add</button></div><textarea id="fd" maxlength="3000" placeholder="Details (optional)" style="min-height:50px;margin-top:8px"></textarea></form></div>` : ''}
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">${cols.map((s, ci) => `<div class="card" style="padding:12px"><h3 style="text-transform:capitalize">${s} <span class="muted">${feats.filter(f => f.status === s).length}</span></h3>
-        ${feats.filter(f => f.status === s).map(f => `<div style="background:#110e0c;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px">
+        ${feats.filter(f => f.status === s).map(f => `<div style="background:var(--input);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px">
           <b>${esc(f.title)}</b><div class="muted" style="font-size:12px">${pri[f.priority]}${f.owner_id ? ' · ' + name(f.owner_id) : ''}</div>
           ${f.detail ? `<div style="font-size:13px;white-space:pre-wrap;margin-top:4px">${esc(f.detail)}</div>` : ''}
           ${!closed ? `<div class="row" style="gap:4px;margin-top:6px">${ci > 0 ? `<button class="btn small ghost" data-fmove="${f.id}" data-to="${cols[ci - 1]}">←</button>` : ''}${ci < 3 ? `<button class="btn small ghost" data-fmove="${f.id}" data-to="${cols[ci + 1]}">→</button>` : ''}
@@ -1024,7 +1037,7 @@ async function ventureWorkspace(v, people, name, tab) {
         <button class="btn small" id="tgo">Add</button></form></div>` : ''}
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">${cols.map(([s, l], ci) => `<div class="card" style="padding:12px"><h3>${l} <span class="muted">${tasks.filter(t => t.status === s).length}</span></h3>
         ${tasks.filter(t => t.status === s).map(t => { const late = t.due_on && t.status !== 'done' && t.due_on < todayISO();
-          return `<div style="background:#110e0c;border:1px solid ${late ? 'var(--red)' : 'var(--line)'};border-radius:8px;padding:8px 10px;margin-bottom:8px">
+          return `<div style="background:var(--input);border:1px solid ${late ? 'var(--red)' : 'var(--line)'};border-radius:8px;padding:8px 10px;margin-bottom:8px">
           <b>${esc(t.title)}</b><div class="muted" style="font-size:12px">${t.owner_id ? name(t.owner_id) : 'unassigned'}${t.due_on ? ` · due ${dayMonth(t.due_on)}${late ? ' (late)' : ''}` : ''}</div>
           ${!closed ? `<div class="row" style="gap:4px;margin-top:6px">${ci > 0 ? `<button class="btn small ghost" data-tmove="${t.id}" data-to="${cols[ci - 1][0]}">←</button>` : ''}${ci < 2 ? `<button class="btn small ghost" data-tmove="${t.id}" data-to="${cols[ci + 1][0]}">→</button>` : ''}
             ${t.owner_id !== me.id ? `<button class="btn small ghost" data-tmine="${t.id}">Mine</button>` : ''}<button class="btn small ghost" data-tdel="${t.id}" title="Delete">✕</button></div>` : ''}</div>`; }).join('') || '<p class="muted" style="font-size:13px">—</p>'}</div>`).join('')}</div>`;
@@ -1044,7 +1057,7 @@ async function ventureWorkspace(v, people, name, tab) {
       <div class="card"><h2>Totals</h2><table>
         <tr><td>Put in by members</td><td><b>${money_(sum('contribution'))}</b></td></tr>
         <tr><td>Spent</td><td>${money_(sum('expense'))}</td></tr><tr><td>Earned</td><td>${money_(sum('revenue'))}</td></tr>
-        <tr><td>Profit so far</td><td><b style="color:${profit < 0 ? '#e07a70' : 'var(--ok)'}">${money_(profit)}</b></td></tr>
+        <tr><td>Profit so far</td><td><b style="color:${profit < 0 ? 'var(--red)' : 'var(--ok)'}">${money_(profit)}</b></td></tr>
         <tr><td>Paid out to members</td><td>${money_(sum('payout'))}</td></tr>
         <tr><td>In the venture's pot</td><td><b>${money_(pot)}</b></td></tr></table></div>
       <div class="card"><h2>Per member</h2><table><tr><th>Name</th><th>Share</th><th>Put in</th><th>Taken out</th><th>Profit share</th></tr>
@@ -1128,7 +1141,7 @@ const money_ = n => '£' + Number(n || 0).toLocaleString('en-GB', { minimumFract
 
 // ---------- shared hobby helpers ----------
 const SYSTEMS = { '40k': 'Warhammer 40K', aos: 'Age of Sigmar' };
-const selCss = 'style="width:100%;padding:10px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px"';
+const selCss = 'style="width:100%;padding:10px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:8px"';
 const fmtShort = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 // WhatsApp share link. The message carries a link back to the page.
 const waShare = (text, hash) => `<a class="btn small ghost" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(text + '\n' + location.origin + '/#' + hash)}">Share on WhatsApp</a>`;
@@ -1206,7 +1219,7 @@ async function pageMember(id) {
   app.innerHTML = `<p><a href="#members" class="muted">← Members</a></p>
   <div class="card"><div class="row" style="gap:18px">${av(id, 84)}<div class="grow"><h1 style="margin:0">${esc(p.display_name)}</h1>
     <p class="muted" style="margin:4px 0 0">🎂 ${dayMonth(p.birthday)} · ⚔️ ${myGames.length} games (${rec('win')}W ${rec('draw')}D ${rec('loss')}L) · 🖌️ ${paintedYear} models painted in ${THIS_YEAR}</p></div>
-    ${mine ? '<a class="btn small ghost" href="#profile">Edit profile</a>' : ''}</div>
+    ${mine ? '<a href="#profile" style="color:var(--gold);font-size:14px">Edit profile →</a>' : ''}</div>
     ${p.wishlist ? `<h3 style="margin-top:14px">Wishlist</h3><div class="notes">${esc(p.wishlist)}</div>` : ''}
     ${p.armies ? `<h3 style="margin-top:12px">Armies (in their words)</h3><div class="notes">${esc(p.armies)}</div>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow" style="margin:0">Collection</h2>${mine ? '<button class="btn small" id="cpaste">Upload an army list</button>' : ''}</div>
@@ -1237,7 +1250,7 @@ async function pageMember(id) {
           <td style="width:90px"><input type="number" data-pc="${i}" min="1" max="999" value="${u.models}" style="padding:6px"></td></tr>`).join('')}</table>
         <button class="btn" id="psave">Save this army</button>`;
       const warn = () => { const sys = $('#ps').value, f = $('#pf2').value.trim(), have = items.filter(i => i.system === sys && i.faction.toLowerCase() === f.toLowerCase()).length;
-        $('#pwarn').innerHTML = !f ? '<span style="color:#e0a070">Say which army this is.</span>' : have ? `<span style="color:var(--gold)">This replaces your ${have} existing ${esc(f)} unit${have === 1 ? '' : 's'}.</span>` : `<span class="muted">New army: ${esc(f)}.</span>`; };
+        $('#pwarn').innerHTML = !f ? '<span style="color:var(--warn)">Say which army this is.</span>' : have ? `<span style="color:var(--gold)">This replaces your ${have} existing ${esc(f)} unit${have === 1 ? '' : 's'}.</span>` : `<span class="muted">New army: ${esc(f)}.</span>`; };
       $('#ps').onchange = $('#pf2').oninput = warn; warn();
       $('#psave').onclick = e => busy(e.target, async () => {
         const list = r.units.map((u, i) => i).filter(i => $(`[data-pu="${i}"]`).checked).map(i => ({ unit_name: $(`[data-pn="${i}"]`).value.trim(), models: +$(`[data-pc="${i}"]`).value || 1 }));
@@ -1393,7 +1406,7 @@ async function challengeCards(el) {
   const end = lastDay(cur), daysLeft = Math.round((end - new Date(londonToday() + 'T00:00:00')) / 864e5) + 1;
   const canPick = x => x && !x.theme && (x.setter === me.id || me.is_admin);
   const pickForm = (x, id) => `<form class="row" data-pick="${x.month}" style="margin-top:10px"><input type="text" maxlength="120" required placeholder="e.g. A character, Something with wings, A vehicle" class="grow" id="${id}"><button class="btn small">Set the challenge</button></form>
-    ${me.is_admin ? `<div class="row" style="margin-top:8px"><span class="muted" style="font-size:13px">Give the turn to</span><select data-setter="${x.month}" style="padding:6px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:6px">${Object.values(PEOPLE).sort((a, b) => a.display_name.localeCompare(b.display_name)).map(p => `<option value="${p.id}" ${p.id === x.setter ? 'selected' : ''}>${esc(p.display_name)}</option>`).join('')}</select></div>` : ''}`;
+    ${me.is_admin ? `<div class="row" style="margin-top:8px"><span class="muted" style="font-size:13px">Give the turn to</span><select data-setter="${x.month}" style="padding:6px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:6px">${Object.values(PEOPLE).sort((a, b) => a.display_name.localeCompare(b.display_name)).map(p => `<option value="${p.id}" ${p.id === x.setter ? 'selected' : ''}>${esc(p.display_name)}</option>`).join('')}</select></div>` : ''}`;
   const past = chals.filter(x => x.month < cur && x.theme);
   const owed = roundsOwed(chals, entries, cur);
   el.innerHTML = `
@@ -1421,7 +1434,7 @@ async function challengeCards(el) {
     const lost = Object.keys(PEOPLE).filter(u => !fin.includes(u) && !out.includes(u));
     return `<tr><td style="white-space:nowrap" class="muted">${monthLabel(x.month)}</td><td><b>${esc(x.theme)}</b> ${x.setter ? `<span class="muted" style="font-size:13px">(${who(x.setter)}'s pick)</span>` : ''}<br>
       ${fin.map(u => ent(x.month, u).photo_path ? `<img src="${photoUrl(ent(x.month, u).photo_path)}" alt="" title="${esc(PEOPLE[u].display_name)}" data-zoom="${photoUrl(ent(x.month, u).photo_path)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:zoom-in;margin:4px 4px 0 0">` : `<span title="Finished (before the site)" style="margin:4px 4px 0 0;display:inline-block">${av(u, 40)}</span>`).join('')}
-      ${lost.length ? `<br><span style="font-size:13px;color:#e0a070">Missed it: ${lost.map(u => esc(PEOPLE[u].display_name)).join(', ')}</span>` : '<br><span style="font-size:13px;color:var(--ok)">Everyone finished</span>'}</td></tr>`; }).join('')}</table></div>` : ''}`;
+      ${lost.length ? `<br><span style="font-size:13px;color:var(--warn)">Missed it: ${lost.map(u => esc(PEOPLE[u].display_name)).join(', ')}</span>` : '<br><span style="font-size:13px;color:var(--ok)">Everyone finished</span>'}</td></tr>`; }).join('')}</table></div>` : ''}`;
 
   const reload = () => challengeCards(el);
   $$('[data-zoom]', el).forEach(i => i.onclick = () => lightbox(i.dataset.zoom, ''));
@@ -1460,7 +1473,7 @@ async function pagePainting() {
   </div>
   <div class="card"><h2>Recently finished</h2>
     ${log.length ? `<div class="gallery">${log.slice(0, 60).map(x => `<div class="mini" ${x.photo_path ? `data-src="${photoUrl(x.photo_path)}"` : 'style="cursor:default"'}>
-      ${x.photo_path ? `<img loading="lazy" src="${photoUrl(x.photo_path)}" alt="${esc(x.title)}">` : `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:42px;background:#0c0a09">🖌️</div>`}
+      ${x.photo_path ? `<img loading="lazy" src="${photoUrl(x.photo_path)}" alt="${esc(x.title)}">` : `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:42px;background:var(--input)">🖌️</div>`}
       <div><b>${esc(x.title)}</b><span class="muted">${who(x.user_id)} · ${x.models} model${x.models === 1 ? '' : 's'} · ${new Date(x.painted_on + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
       ${x.user_id === me.id ? ` · <a href="#" data-pldel="${x.id}" style="color:var(--muted)">remove</a>` : ''}</div></div>`).join('')}</div>` : '<p class="muted" style="margin:0">Nothing logged yet.</p>'}
   </div>`;
@@ -1491,7 +1504,7 @@ async function awardsCard(el, m) {
   el.innerHTML = `<h2>Awards</h2><p class="muted" style="margin-top:0;font-size:13px">One vote each per award. You can't vote for yourself.</p>
     <table>${Object.entries(AWARDS).map(([k, l]) => { const mine = votes.find(v => v.award === k && v.voter === me.id)?.nominee;
       return `<tr><td>${l}</td><td>${wins[k] ? wins[k].who.map(u => who(u)).join(' ') + ` <span class="muted" style="font-size:12px">(${wins[k].n})</span>` : '<span class="muted">—</span>'}</td>
-        <td style="width:150px"><select data-aw="${k}" style="padding:6px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:6px;width:100%"><option value="">My vote…</option>${pool.map(u => `<option value="${u}" ${u === mine ? 'selected' : ''}>${esc(PEOPLE[u]?.display_name)}</option>`).join('')}</select></td></tr>`; }).join('')}</table>`;
+        <td style="width:150px"><select data-aw="${k}" style="padding:6px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:6px;width:100%"><option value="">My vote…</option>${pool.map(u => `<option value="${u}" ${u === mine ? 'selected' : ''}>${esc(PEOPLE[u]?.display_name)}</option>`).join('')}</select></td></tr>`; }).join('')}</table>`;
   $$('[data-aw]', el).forEach(s => s.onchange = () => busy(s, async () => {
     if (!s.value) ok(await sb.from('meetup_awards').delete().eq('meetup_id', m.id).eq('award', s.dataset.aw).eq('voter', me.id));
     else ok(await sb.from('meetup_awards').upsert({ meetup_id: m.id, award: s.dataset.aw, voter: me.id, nominee: s.value }));
@@ -1532,7 +1545,7 @@ async function pageFame() {
       <label for="qc">Context (optional)</label><input type="text" id="qc" maxlength="200" placeholder="Turn 2, right before the Grots ate his Warlord">
       <button class="btn" id="qgo">Add quote</button></form></details>
     ${ranked.length ? `<div style="margin-top:14px">${ranked.map(q => { const ls = lc(q.id), mine = ls.some(l => l.user_id === me.id), m = meetups.find(x => x.id === q.meetup_id);
-      return `<div style="border-left:3px solid var(--gold);padding:8px 14px;margin:10px 0;background:#110e0c;border-radius:6px">
+      return `<div style="border-left:3px solid var(--gold);padding:8px 14px;margin:10px 0;background:var(--input);border-radius:6px">
         <div style="font-size:17px;font-style:italic">“${esc(q.quote)}”</div>
         <div class="row" style="margin-top:6px;gap:8px"><span class="grow muted" style="font-size:13px">${q.said_by ? '— ' + who(q.said_by) : '— someone'}${q.context ? ` · ${esc(q.context)}` : ''}${m ? ` · ${esc(m.title)}` : ''}</span>
           <button class="btn small ${mine ? '' : 'ghost'}" data-ql="${q.id}" data-on="${mine}">😂 ${ls.length}</button>
@@ -1575,7 +1588,7 @@ function expenseRow(e, name) {
   const mine = (e.shares.find(s => s.user_id === me.id) || {}).owed;
   const link = e.meetup_id ? ` · <a href="#meetup/${e.meetup_id}" style="color:var(--muted)">meetup</a>` : e.gift_id ? ` · <a href="#gift/${e.gift_id}" style="color:var(--muted)">present</a>` : '';
   const you = e.paid_by === me.id ? `<span style="color:var(--ok)">you lent ${money_(e.amount - (mine || 0))}</span>`
-    : mine ? `<span style="color:#e0a070">you owe ${money_(mine)}</span>` : '<span class="muted">not involved</span>';
+    : mine ? `<span style="color:var(--warn)">you owe ${money_(mine)}</span>` : '<span class="muted">not involved</span>';
   return `<tr class="xrow" data-x="${e.id}" style="cursor:pointer"><td style="white-space:nowrap" class="muted">${new Date(e.spent_on + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
     <td><b>${esc(e.description)}</b><br><span class="muted" style="font-size:13px">${name(e.paid_by)} paid ${money_(e.amount)}${link}</span></td>
     <td style="text-align:right;font-size:13px">${you}</td></tr>
@@ -1607,7 +1620,7 @@ async function pageMoney(arg, arg2) {
 
   app.innerHTML = `
   <div class="card"><div class="row"><h1 class="grow" style="margin:0">Money</h1><a class="btn small" href="#money/new">+ Add expense</a><a class="btn small ghost" href="#money/pay">Record a payment</a></div>
-    <p style="font-size:20px;margin:14px 0 4px">${Math.abs(net) < 0.005 ? 'You\'re all square.' : net > 0 ? `Overall you're owed <b style="color:var(--ok)">${money_(net)}</b>` : `Overall you owe <b style="color:#e0a070">${money_(-net)}</b>`}</p>
+    <p style="font-size:20px;margin:14px 0 4px">${Math.abs(net) < 0.005 ? 'You\'re all square.' : net > 0 ? `Overall you're owed <b style="color:var(--ok)">${money_(net)}</b>` : `Overall you owe <b style="color:var(--warn)">${money_(-net)}</b>`}</p>
     ${iOwe.length || owedMe.length ? `<table style="margin-top:8px">${iOwe.map(p => `<tr><td>Pay <b>${name(p.to)}</b></td><td>${money_(p.amount)}</td><td style="text-align:right"><a class="btn small" href="#money/pay/${p.to}">I've paid</a></td></tr>`).join('')}
       ${owedMe.map(p => `<tr><td><b>${name(p.from)}</b> pays you</td><td>${money_(p.amount)}</td><td style="text-align:right"><a class="btn small ghost" href="#money/pay/${p.from}">They've paid me</a></td></tr>`).join('')}</table>` : ''}
     <p class="muted" style="font-size:13px;margin-bottom:0">Paying happens by bank transfer as usual. This just records it.</p>
@@ -1619,7 +1632,7 @@ async function pageMoney(arg, arg2) {
   <div class="card"><h2>Everyone</h2>
     ${plan.length ? `<table>${plan.map(p => `<tr><td>${name(p.from)} pays ${name(p.to)}</td><td style="text-align:right">${money_(p.amount)}</td></tr>`).join('')}</table>
       <p class="muted" style="font-size:13px">Debts are simplified so the group settles in as few payments as possible (${plan.length} right now). It's fine to pay someone you never shared a bill with: the totals all work out.</p>
-      <details><summary class="muted" style="cursor:pointer;font-size:13px">Overall position per person</summary><table style="margin-top:6px">${Object.entries(nets).sort((a, b) => b[1] - a[1]).map(([u, v]) => `<tr><td>${name(u)}</td><td style="text-align:right;color:${v > 0 ? 'var(--ok)' : '#e0a070'}">${v > 0 ? 'owed ' : 'owes '}${money_(Math.abs(v))}</td></tr>`).join('')}</table></details>` : '<p class="muted" style="margin:0">Nobody owes anybody anything.</p>'}
+      <details><summary class="muted" style="cursor:pointer;font-size:13px">Overall position per person</summary><table style="margin-top:6px">${Object.entries(nets).sort((a, b) => b[1] - a[1]).map(([u, v]) => `<tr><td>${name(u)}</td><td style="text-align:right;color:${v > 0 ? 'var(--ok)' : 'var(--warn)'}">${v > 0 ? 'owed ' : 'owes '}${money_(Math.abs(v))}</td></tr>`).join('')}</table></details>` : '<p class="muted" style="margin:0">Nobody owes anybody anything.</p>'}
   </div>
 
   <div class="card"><h2>Activity</h2>
@@ -1642,8 +1655,8 @@ async function pageSettle(other) {
   const owes = (d, c) => +(plan.find(p => p.from === d && p.to === c)?.amount || 0);
   app.innerHTML = `<p><a href="#money" class="muted">← Money</a></p><div class="card narrow" style="margin-top:0"><h1>Record a payment</h1>
     <form id="sf">
-      <label for="sdir">What happened?</label><select id="sdir" style="width:100%;padding:10px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px"><option value="out">I paid someone</option><option value="in">Someone paid me</option></select>
-      <label for="swho">Who?</label><select id="swho" style="width:100%;padding:10px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px">${others.map(p => `<option value="${p.id}" ${p.id === other ? 'selected' : ''}>${esc(p.display_name)}</option>`).join('')}</select>
+      <label for="sdir">What happened?</label><select id="sdir" style="width:100%;padding:10px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:8px"><option value="out">I paid someone</option><option value="in">Someone paid me</option></select>
+      <label for="swho">Who?</label><select id="swho" style="width:100%;padding:10px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:8px">${others.map(p => `<option value="${p.id}" ${p.id === other ? 'selected' : ''}>${esc(p.display_name)}</option>`).join('')}</select>
       <label for="samt">Amount £</label><input type="number" id="samt" min="0.01" step="0.01" required>
       <label for="sdate">Date</label><input type="date" id="sdate" value="${todayISO()}">
       <label for="snote">Note (optional)</label><input type="text" id="snote" maxlength="200" placeholder="e.g. bank transfer">
@@ -1690,7 +1703,7 @@ async function pageExpenseForm(kind, ref) {
   const weight = id => { const s = e?.shares.find(x => x.user_id === id); return s ? (e.split_mode === 'exact' ? s.owed : s.weight) : ''; };
   const mode0 = e?.split_mode || 'equal';
   const back = meetup ? `#meetup/${meetup.id}` : gift ? `#gift/${gift.id}` : '#money';
-  const sel = 'style="width:100%;padding:10px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px"';
+  const sel = 'style="width:100%;padding:10px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:8px"';
   const recipName = gift ? esc(people.find(p => p.id === gift.recipient_id)?.display_name) : '';
 
   app.innerHTML = `<p><a href="${back}" class="muted">← Back</a></p><div class="card" style="max-width:620px">
@@ -1725,7 +1738,7 @@ async function pageExpenseForm(kind, ref) {
     if (m === 'exact') {
       const tot = on.reduce((a, id) => a + w(id), 0);
       on.forEach(id => $(`[data-o="${id}"]`).textContent = money_(w(id) / 100));
-      $('#xsum').innerHTML = tot === amt ? '<span style="color:var(--ok)">Adds up ✓</span>' : `<span style="color:#e0a070">${money_(Math.abs(amt - tot) / 100)} ${tot < amt ? 'left to assign' : 'too much'}</span>`;
+      $('#xsum').innerHTML = tot === amt ? '<span style="color:var(--ok)">Adds up ✓</span>' : `<span style="color:var(--warn)">${money_(Math.abs(amt - tot) / 100)} ${tot < amt ? 'left to assign' : 'too much'}</span>`;
     } else {   // preview only; the server does the final penny-exact split
       const W = on.reduce((a, id) => a + w(id), 0);
       on.forEach(id => $(`[data-o="${id}"]`).textContent = '≈ ' + money_(amt * w(id) / W / 100));

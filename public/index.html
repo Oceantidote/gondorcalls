@@ -1345,8 +1345,8 @@ async function challengeCards(el) {
   <div class="card"><h2>🍺 Rounds owed</h2>${roundsOwedHtml(owed)}</div>
   ${past.length ? `<div class="card"><h2>Past challenges</h2><table>${past.map(x => { const fin = Object.keys(PEOPLE).filter(u => ent(x.month, u)?.finished_at), out = Object.keys(PEOPLE).filter(u => ent(x.month, u)?.opted_out);
     const lost = Object.keys(PEOPLE).filter(u => !fin.includes(u) && !out.includes(u));
-    return `<tr><td style="white-space:nowrap" class="muted">${monthLabel(x.month)}</td><td><b>${esc(x.theme)}</b> <span class="muted" style="font-size:13px">(${who(x.setter, esc(PEOPLE[x.setter]?.display_name || '?'))}'s pick)</span><br>
-      ${fin.map(u => `<img src="${photoUrl(ent(x.month, u).photo_path)}" alt="" title="${esc(PEOPLE[u].display_name)}" data-zoom="${photoUrl(ent(x.month, u).photo_path)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:zoom-in;margin:4px 4px 0 0">`).join('')}
+    return `<tr><td style="white-space:nowrap" class="muted">${monthLabel(x.month)}</td><td><b>${esc(x.theme)}</b> ${x.setter ? `<span class="muted" style="font-size:13px">(${who(x.setter)}'s pick)</span>` : ''}<br>
+      ${fin.map(u => ent(x.month, u).photo_path ? `<img src="${photoUrl(ent(x.month, u).photo_path)}" alt="" title="${esc(PEOPLE[u].display_name)}" data-zoom="${photoUrl(ent(x.month, u).photo_path)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:zoom-in;margin:4px 4px 0 0">` : `<span title="Finished (before the site)" style="margin:4px 4px 0 0;display:inline-block">${av(u, 40)}</span>`).join('')}
       ${lost.length ? `<br><span style="font-size:13px;color:#e0a070">Missed it: ${lost.map(u => esc(PEOPLE[u].display_name)).join(', ')}</span>` : '<br><span style="font-size:13px;color:var(--ok)">Everyone finished</span>'}</td></tr>`; }).join('')}</table></div>` : ''}`;
 
   const reload = () => challengeCards(el);

@@ -1,0 +1,13 @@
+name = "gondorcalls"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+account_id = "3afe6df41fb0880243917e5d04d1fa99"
+workers_dev = false
+
+routes = [
+  { pattern = "gondorcalls.com", custom_domain = true },
+  { pattern = "www.gondorcalls.com", custom_domain = true },
+]
+
+[triggers]
+crons = ["17 6 * * *"]

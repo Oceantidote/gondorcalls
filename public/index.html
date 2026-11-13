@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Warband</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root { --bg:#14110f; --panel:#1f1a16; --panel2:#2a231d; --line:#3d332a; --gold:#d4a64a; --gold2:#f0cf85; --red:#a8322d; --text:#ece3d4; --muted:#a39684; --ok:#6fa86b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background: radial-gradient(ellipse at top, #2a1a16 0%, var(--bg) 60%) fixed; color:var(--text); font:15px/1.5 Inter, system-ui, sans-serif; min-height:100vh; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; max-width:1000px; margin:0 auto; padding:20px 16px 8px; }
+  .brand { font-family:Cinzel, serif; font-weight:800; color:var(--gold); font-size:26px; letter-spacing:.06em; text-decoration:none; text-shadow:0 2px 0 #000; }
+  nav { display:flex; gap:6px; flex-wrap:wrap; }
+  nav a { color:var(--muted); text-decoration:none; border:1px solid var(--line); padding:6px 14px; border-radius:999px; font-weight:600; font-size:14px; }
+  nav a.on { background:var(--gold); color:#1a130b; border-color:var(--gold); }
+  main { max-width:1000px; margin:0 auto; padding:12px 16px 64px; }
+  .card { background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:16px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
+  .narrow { max-width:440px; margin:40px auto; }
+  h1 { font-family:Cinzel, serif; color:var(--gold); margin:0 0 16px; font-size:28px; }
+  h2 { font-family:Cinzel, serif; color:var(--gold2); margin:0 0 12px; font-size:20px; }
+  h3 { margin:0 0 8px; font-size:16px; }
+  label { display:block; font-weight:600; font-size:13px; color:var(--muted); margin:12px 0 4px; }
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], textarea {
+    width:100%; padding:10px 12px; background:#110e0c; border:1px solid var(--line); color:var(--text); border-radius:8px; font:inherit; color-scheme:dark; }
+  textarea { min-height:90px; resize:vertical; }
+  input:focus, textarea:focus { outline:2px solid var(--gold); outline-offset:1px; }
+  .btn { display:inline-block; margin-top:14px; background:var(--gold); color:#1a130b; border:0; padding:10px 18px; border-radius:8px; font:600 14px Inter, sans-serif; cursor:pointer; text-decoration:none; }
+  .btn.ghost { background:transparent; color:var(--gold); border:1px solid var(--gold); }
+  .btn.danger { background:var(--red); color:#fff; }
+  .btn.small { padding:6px 12px; margin-top:0; font-size:13px; }
+  .btn:disabled { opacity:.5; cursor:wait; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  .grow { flex:1; min-width:200px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
+  .muted { color:var(--muted); }
+  .big-name { font-family:Cinzel, serif; font-size:clamp(28px,6vw,44px); color:var(--gold); margin:4px 0 8px; }
+  .notes { white-space:pre-wrap; background:#110e0c; border-left:3px solid var(--gold); padding:10px 14px; border-radius:6px; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid var(--line); }
+  .pill.ok { color:var(--ok); border-color:var(--ok); } .pill.gold { color:var(--gold); border-color:var(--gold); }
+  table { width:100%; border-collapse:collapse; }
+  td, th { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
+  .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
+  .mini { background:#110e0c; border:1px solid var(--line); border-radius:12px; overflow:hidden; cursor:zoom-in; }
+  .mini img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#000; }
+  .mini div { padding:10px 12px; } .mini b { display:block; }
+  .year-h { font-family:Cinzel, serif; color:var(--gold); font-size:24px; margin:20px 0 10px; border-bottom:1px solid var(--line); }
+  .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#000; border:1px solid var(--gold); color:var(--text); padding:12px 18px; border-radius:10px; max-width:90vw; z-index:50; }
+  .toast.err { border-color:var(--red); }
+  .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.92); display:flex; align-items:center; justify-content:center; z-index:40; cursor:zoom-out; padding:20px; flex-direction:column; }
+  .lightbox img { max-width:100%; max-height:82vh; border-radius:8px; }
+  .linkbox { font-family:ui-monospace, monospace; font-size:12px; word-break:break-all; background:#110e0c; padding:10px; border-radius:6px; border:1px dashed var(--gold); }
+  .preview { max-width:220px; border-radius:8px; margin-top:10px; display:block; }
+  .hidden { display:none !important; }
+  .empty { text-align:center; padding:30px; color:var(--muted); }
+  .tabs2 { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<header id="hdr" class="hidden">
+  <a class="brand" href="#home">The Warband</a>
+  <nav id="nav"></nav>
+</header>
+<main id="app"><div class="empty">Loading…</div></main>
+<script>
+const SITE_NAME = 'The Warband';
+const sb = supabase.createClient('https://vhlalqnxkasijbspyrrp.supabase.co', 'sb_publishable_g2Oe_3tlYEittwgGjF94AQ_vvhB5wDf');
+const THIS_YEAR = new Date().getFullYear();
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const app = $('#app');
+let me = null;
+
+function toast(msg, err = false) {
+  const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), err ? 6000 : 3000);
+}
+async function busy(btn, fn) { btn.disabled = true; try { await fn(); } catch (e) { toast(e.message || String(e), true); } finally { btn.disabled = false; } }
+const ok = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
+const rpc = async (fn, args = {}) => ok(await sb.rpc(fn, args));
+const photoUrl = p => sb.storage.from('models').getPublicUrl(p).data.publicUrl;
+const inviteLink = (kind, t) => `${location.origin}/#${kind}=${t}`;
+async function copy(text) { try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Copy failed: select the link and copy it by hand', true); } }
+
+async function invite(body) {
+  const r = await fetch('https://vhlalqnxkasijbspyrrp.supabase.co/functions/v1/invite', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: 'sb_publishable_g2Oe_3tlYEittwgGjF94AQ_vvhB5wDf' }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Something went wrong');
+  return d;
+}
+
+async function shrink(file) {
+  const img = await createImageBitmap(file).catch(() => null);
+  if (!img) throw new Error('Could not read that image');
+  const max = 1800, scale = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return new Promise(res => c.toBlob(res, 'image/jpeg', 0.88));
+}
+async function uploadPhoto(file, area, year) {
+  const path = `${area}/${year}/${me.id}/${crypto.randomUUID()}.jpg`;
+  ok(await sb.storage.from('models').upload(path, await shrink(file), { contentType: 'image/jpeg' }));
+  return path;
+}
+
+function nextBirthday(d) {
+  if (!d) return null;
+  const [y, m, day] = d.split('-').map(Number), now = new Date(); now.setHours(0,0,0,0);
+  let n = new Date(now.getFullYear(), m - 1, day); if (n < now) n = new Date(now.getFullYear() + 1, m - 1, day);
+  return { date: n, days: Math.round((n - now) / 864e5) };
+}
+const dayMonth = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : '—';
+
+// ---------- routing ----------
+const routes = { home: pageHome, meetups: pageMeetups, meetup: pageMeetup, birthdays: pageBirthdays, gift: pageGift, gallery: pageGallery, members: pageMembers, santa: pageSanta, profile: pageProfile, admin: pageAdmin };
+function drawNav(active) {
+  const items = [['home','Home'],['meetups','Meetups'],['birthdays','Birthdays'],['gallery','Gallery'],['members','Members'],['santa','Secret Santa'],['profile','My profile']];
+  if (me?.is_admin) items.push(['admin','Admin']);
+  $('#nav').innerHTML = items.map(([k, l]) => `<a href="#${k}" class="${k === active ? 'on' : ''}">${l}</a>`).join('') + `<a href="#" id="signout">Sign out</a>`;
+  $('#signout').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); me = null; location.hash = ''; route(); };
+}
+async function route() {
+  const h = location.hash.slice(1);
+  const m = h.match(/^(invite|reset)=([0-9a-f-]{36})$/i);
+  if (m) { $('#hdr').classList.add('hidden'); return pageRedeem(m[1], m[2]); }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { me = null; $('#hdr').classList.add('hidden'); return pageLogin(); }
+  if (!me || me.id !== session.user.id) {
+    const { data } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+    if (!data) { await sb.auth.signOut(); toast('No member profile for this account', true); return pageLogin(); }
+    me = data;
+  }
+  const [base, arg] = h.split('/');
+  const page = routes[base] ? base : 'home';
+  $('#hdr').classList.remove('hidden'); drawNav(page === 'meetup' ? 'meetups' : page === 'gift' ? 'birthdays' : page);
+  app.innerHTML = '<div class="empty">Loading…</div>';
+  try { await routes[page](arg); } catch (e) { app.innerHTML = `<div class="card">${esc(e.message)}</div>`; }
+}
+addEventListener('hashchange', route);
+
+// ---------- auth pages ----------
+function pageLogin() {
+  app.innerHTML = `<div class="card narrow"><h1>${SITE_NAME}</h1>
+    <p class="muted" style="margin-top:0">Members only. New here? You need an invite link from the organiser.</p>
+    <form id="f"><label for="em">Email</label><input type="email" id="em" autocomplete="email" required>
+    <label for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" required>
+    <button class="btn" id="go">Sign in</button></form>
+    <p class="muted" style="font-size:13px">Forgotten your password? Ask the organiser for a reset link.</p></div>`;
+  $('#f').onsubmit = e => { e.preventDefault(); busy($('#go'), async () => {
+    ok(await sb.auth.signInWithPassword({ email: $('#em').value.trim(), password: $('#pw').value }));
+    location.hash = 'home'; route();
+  }); };
+}
+async function pageRedeem(kind, token) {
+  app.innerHTML = '<div class="empty">Checking your link…</div>';
+  let info;
+  try { info = await invite({ action: 'check', token }); }
+  catch (e) { app.innerHTML = `<div class="card narrow"><h2>Link problem</h2><p>${esc(e.message)}</p><a class="btn ghost" href="#">Go to sign in</a></div>`; return; }
+  const join = kind === 'invite';
+  app.innerHTML = `<div class="card narrow"><h1>${join ? 'Join ' + SITE_NAME : 'Set a new password'}</h1>
+    <form id="f">
+    ${join ? `<label for="nm">Your name (as the group knows you)</label><input type="text" id="nm" maxlength="40" value="${esc(info.display_name || '')}" required>
+      <label for="em">Email (this is your login)</label><input type="email" id="em" autocomplete="email" required>`
+      : `<p class="muted">For <b>${esc(info.display_name || '')}</b></p>`}
+    <label for="pw">${join ? 'Choose a password' : 'New password'} (8+ characters)</label><input type="password" id="pw" minlength="8" autocomplete="new-password" required>
+    <button class="btn" id="go">${join ? 'Create my account' : 'Save password'}</button></form></div>`;
+  $('#f').onsubmit = e => { e.preventDefault(); busy($('#go'), async () => {
+    const pw = $('#pw').value;
+    const r = join ? await invite({ action: 'redeem', token, email: $('#em').value, display_name: $('#nm').value, password: pw })
+                   : await invite({ action: 'reset', token, password: pw });
+    ok(await sb.auth.signInWithPassword({ email: r.email, password: pw }));
+    toast(join ? 'Welcome to the Warband!' : 'Password updated');
+    history.replaceState(null, '', location.pathname + (join ? '#profile' : '#home')); route();
+  }); };
+}
+
+// ---------- home ----------
+async function pageHome() {
+  const [people, assignments] = await Promise.all([
+    sb.from('profiles').select('id,display_name,birthday').then(ok),
+    sb.from('ss_assignments').select('year, receiver_id, photo_path').eq('giver_id', me.id).order('year', { ascending: false }).limit(1).then(ok),
+  ]);
+  const bdays = people.map(p => ({ ...p, nb: nextBirthday(p.birthday) })).filter(p => p.nb).sort((a, b) => a.nb.days - b.nb.days);
+  const santa = assignments[0];
+  const nm = await nextMeetup();
+  const missing = people.filter(p => !p.birthday).map(p => p.display_name);
+  app.innerHTML = `<h1>Hail, ${esc(me.display_name)}</h1>
+  ${!me.birthday ? `<div class="card"><b>Add your birthday</b> so the group can plan your present. <a href="#profile" class="btn small" style="margin-left:8px">Edit profile</a></div>` : ''}
+  <div class="grid">
+    <div class="card"><h2>Upcoming birthdays</h2>
+      ${bdays.length ? `<table>${bdays.slice(0, 5).map(p => `<tr><td>${esc(p.display_name)}</td><td>${dayMonth(p.birthday)}</td><td class="muted">${p.nb.days === 0 ? '<span class="pill gold">Today!</span>' : `in ${p.nb.days} days`}</td></tr>`).join('')}</table>` : '<p class="muted">No birthdays added yet.</p>'}
+      ${missing.length ? `<p class="muted" style="font-size:13px">Not added yet: ${esc(missing.join(', '))}</p>` : ''}
+      <a class="btn small ghost" href="#birthdays">Gift planning</a>
+    </div>
+    <div class="card"><h2>Secret Santa</h2>
+      ${santa ? `<p>${santa.year}: you're painting for <b>${esc(people.find(p => p.id === santa.receiver_id)?.display_name)}</b>. ${santa.photo_path ? '<span class="pill ok">Done</span>' : ''}</p>` : '<p class="muted">No draw yet this year.</p>'}
+      <a class="btn small" href="#santa">Open Secret Santa</a>
+    </div>
+    <div class="card"><h2>Next meetup</h2>
+      ${nm ? `<p><b>${esc(nm.title)}</b> ${statusPill(nm.status)}<br><span class="muted">${fmtRange(nm.start_date, nm.end_date)}</span></p><a class="btn small" href="#meetup/${nm.id}">Open</a>`
+        : '<p class="muted">Nothing planned.</p><a class="btn small ghost" href="#meetups">Plan one</a>'}
+    </div>
+    <div class="card"><h2>The Warband</h2><p>${people.length} members.</p><a class="btn small ghost" href="#members">See everyone</a></div>
+  </div>`;
+}
+
+// ---------- members ----------
+async function pageMembers() {
+  const people = await sb.from('profiles').select('id,display_name,birthday,armies,wishlist').order('display_name').then(ok);
+  app.innerHTML = `<h1>Members</h1><div class="grid">${people.map(p => `<div class="card">
+    <h2>${esc(p.display_name)}</h2>
+    <p class="muted" style="margin:0">🎂 ${dayMonth(p.birthday)}</p>
+    ${p.armies ? `<h3 style="margin-top:12px">Armies</h3><div class="notes">${esc(p.armies)}</div>` : ''}
+    ${p.wishlist ? `<h3 style="margin-top:12px">Wishlist</h3><div class="notes">${esc(p.wishlist)}</div>` : ''}
+  </div>`).join('')}</div>`;
+}
+
+// ---------- profile ----------
+async function pageProfile() {
+  app.innerHTML = `<h1>My profile</h1>
+  <div class="card"><form id="pf">
+    <label for="nm">Name</label><input type="text" id="nm" maxlength="40" value="${esc(me.display_name)}" required>
+    <label for="bd">Birthday</label><input type="date" id="bd" value="${esc(me.birthday || '')}">
+    <label for="ar">Armies you collect</label><textarea id="ar" maxlength="500" placeholder="e.g. Ultramarines, Stormcast, a Kill Team or two">${esc(me.armies)}</textarea>
+    <label for="wl">Wishlist</label><textarea id="wl" maxlength="2000" placeholder="Models you'd love, colour schemes, things you already own. Used for Secret Santa and birthdays.">${esc(me.wishlist)}</textarea>
+    <button class="btn" id="save">Save</button></form></div>
+  <div class="card"><h2>Change password</h2><form id="pwf">
+    <label for="pw">New password (8+ characters)</label><input type="password" id="pw" minlength="8" autocomplete="new-password" required>
+    <button class="btn ghost" id="pwgo">Change password</button></form></div>`;
+  $('#pf').onsubmit = e => { e.preventDefault(); busy($('#save'), async () => {
+    const upd = { display_name: $('#nm').value.trim(), birthday: $('#bd').value || null, armies: $('#ar').value, wishlist: $('#wl').value };
+    ok(await sb.from('profiles').update(upd).eq('id', me.id));
+    Object.assign(me, upd); toast('Profile saved'); drawNav('profile');
+  }); };
+  $('#pwf').onsubmit = e => { e.preventDefault(); busy($('#pwgo'), async () => {
+    ok(await sb.auth.updateUser({ password: $('#pw').value })); $('#pw').value = ''; toast('Password changed');
+  }); };
+}
+
+// ---------- Secret Santa ----------
+let santaTab = 'mine';
+async function pageSanta() {
+  app.innerHTML = `<h1>Secret Santa</h1><div class="tabs2">
+    ${[['mine','My Santa'],['gallery','Gallery'],['progress','Progress']].map(([k,l]) => `<button class="btn small ${k === santaTab ? '' : 'ghost'}" data-st="${k}">${l}</button>`).join('')}
+  </div><div id="st"><div class="empty">Loading…</div></div>`;
+  $$('[data-st]').forEach(b => b.onclick = () => { santaTab = b.dataset.st; pageSanta(); });
+  const el = $('#st');
+  if (santaTab === 'mine') {
+    const [rows, people] = await Promise.all([
+      sb.from('ss_assignments').select('*').eq('giver_id', me.id).order('year', { ascending: false }).then(ok),
+      sb.from('profiles').select('id,display_name,wishlist,armies').then(ok),
+    ]);
+    const who = id => people.find(p => p.id === id) || {};
+    const g = rows[0];
+    if (!g) { el.innerHTML = `<div class="card"><h2>No draw yet</h2><p class="muted">The organiser hasn't run the draw. Make sure your <a href="#profile" style="color:var(--gold)">wishlist</a> is up to date so your Santa knows what to paint.</p></div>`; return; }
+    const r = who(g.receiver_id);
+    el.innerHTML = `<div class="card">
+      <span class="pill gold">${g.year}</span>
+      <p class="muted" style="margin:10px 0 0">You are painting for…</p>
+      <div class="big-name">${esc(r.display_name)}</div>
+      ${r.armies ? `<h3>Their armies</h3><div class="notes">${esc(r.armies)}</div>` : ''}
+      ${r.wishlist ? `<h3 style="margin-top:12px">Their wishlist</h3><div class="notes">${esc(r.wishlist)}</div>` : `<p class="muted">They haven't written a wishlist yet.</p>`}
+      <hr style="border:0;border-top:1px solid var(--line);margin:20px 0">
+      <h3>${g.photo_path ? '✅ Finished. Update it if you like:' : 'Finished it? Log the model'}</h3>
+      ${g.photo_path ? `<img class="preview" src="${photoUrl(g.photo_path)}" alt="">` : ''}
+      <label for="mname">Model name</label><input type="text" id="mname" maxlength="120" value="${esc(g.model_name || '')}" placeholder="e.g. Primaris Lieutenant with Power Sword">
+      <label for="mphoto">Photo</label><input type="file" id="mphoto" accept="image/*">
+      <img id="mprev" class="preview hidden" alt="">
+      <button class="btn" id="msubmit">${g.photo_path ? 'Update' : 'Submit to the gallery'}</button>
+      <p class="muted" style="font-size:13px">The gallery stays hidden until the organiser reveals ${g.year}, so uploading early won't spoil anything.</p>
+    </div>
+    ${rows.length > 1 ? `<div class="card"><h2>Years past</h2><table><tr><th>Year</th><th>Painted for</th><th>Model</th></tr>
+      ${rows.slice(1).map(x => `<tr><td>${x.year}</td><td>${esc(who(x.receiver_id).display_name)}</td><td>${esc(x.model_name || '—')}</td></tr>`).join('')}</table></div>` : ''}`;
+    $('#mphoto').onchange = () => { const f = $('#mphoto').files[0]; if (f) { const p = $('#mprev'); p.src = URL.createObjectURL(f); p.classList.remove('hidden'); } };
+    $('#msubmit').onclick = e => busy(e.target, async () => {
+      const name = $('#mname').value.trim(), f = $('#mphoto').files[0];
+      if (!name) throw new Error('Give the model a name');
+      if (!f && !g.photo_path) throw new Error('Add a photo of the finished model');
+      const path = f ? await uploadPhoto(f, 'santa', g.year) : null;
+      await rpc('ss_submit_model', { p_year: g.year, p_model_name: name, p_photo_path: path });
+      toast('Logged. For the Emperor!'); pageSanta();
+    });
+  } else if (santaTab === 'gallery') {
+    const rows = await rpc('ss_gallery');
+    if (!rows.length) { el.innerHTML = '<div class="card empty">Nothing revealed yet. Once the organiser reveals a year, its models appear here.</div>'; return; }
+    const years = [...new Set(rows.map(r => r.year))];
+    el.innerHTML = years.map(y => `<div class="year-h">${y}</div><div class="gallery">${rows.filter(r => r.year === y).map(r => `
+      <div class="mini" data-src="${photoUrl(r.photo_path)}" data-cap="${esc(r.model_name || '')}: painted by ${esc(r.giver)} for ${esc(r.receiver)}">
+      <img loading="lazy" src="${photoUrl(r.photo_path)}" alt="${esc(r.model_name || '')}">
+      <div><b>${esc(r.model_name || 'Untitled')}</b><span class="muted">${esc(r.giver)} → ${esc(r.receiver)}</span></div></div>`).join('')}</div>`).join('');
+    $$('.mini', el).forEach(m => m.onclick = () => {
+      const lb = document.createElement('div'); lb.className = 'lightbox';
+      lb.innerHTML = `<img src="${m.dataset.src}" alt=""><p>${m.dataset.cap}</p>`; lb.onclick = () => lb.remove(); document.body.appendChild(lb);
+    });
+  } else {
+    const rows = await rpc('ss_progress');
+    el.innerHTML = `<div class="card">${rows.length ? `<table><tr><th>Year</th><th>Models finished</th><th>Gallery</th></tr>${rows.map(d => `<tr><td>${d.year}</td><td>${d.finished} / ${d.people}</td><td>${d.revealed ? '<span class="pill ok">Revealed</span>' : '<span class="pill">Hidden</span>'}</td></tr>`).join('')}</table>` : '<p class="muted">No draws yet.</p>'}</div>`;
+  }
+}
+
+// ---------- meetups ----------
+const fmtD = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const fmtRange = (a, b) => !a ? 'Date to be decided' : (!b || a === b) ? fmtD(a) : `${fmtD(a)} – ${fmtD(b)}`;
+const statusPill = s => ({ planning: '<span class="pill">Planning</span>', confirmed: '<span class="pill ok">Confirmed</span>', done: '<span class="pill gold">Done</span>', cancelled: '<span class="pill">Cancelled</span>' })[s] || '';
+const money = n => n == null || n === '' ? '' : '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 2 });
+const todayISO = () => new Date().toISOString().slice(0, 10);
+function lightbox(src, cap) {
+  const lb = document.createElement('div'); lb.className = 'lightbox';
+  lb.innerHTML = `<img src="${src}" alt=""><p>${esc(cap || '')}</p>`; lb.onclick = () => lb.remove(); document.body.appendChild(lb);
+}
+async function nextMeetup() {
+  const rows = await sb.from('meetups').select('id,title,status,start_date,end_date').in('status', ['planning', 'confirmed']).order('start_date', { ascending: true, nullsFirst: false }).then(ok);
+  return rows.find(m => !m.start_date || (m.end_date || m.start_date) >= todayISO()) || null;
+}
+
+async function pageMeetups() {
+  const rows = await sb.from('meetups').select('id,title,status,start_date,end_date,venue:meetup_venues!meetups_venue_fk(name)').order('start_date', { ascending: false, nullsFirst: true }).then(ok);
+  const live = rows.filter(m => (m.status === 'planning' || m.status === 'confirmed') && (!m.start_date || (m.end_date || m.start_date) >= todayISO()));
+  const past = rows.filter(m => !live.includes(m));
+  const card = m => `<a class="card" href="#meetup/${m.id}" style="display:block;text-decoration:none;color:inherit">
+    <div class="row"><h2 class="grow" style="margin:0">${esc(m.title)}</h2>${statusPill(m.status)}</div>
+    <p class="muted" style="margin:6px 0 0">${fmtRange(m.start_date, m.end_date)}${m.venue ? ' · ' + esc(m.venue.name) : ''}</p></a>`;
+  app.innerHTML = `<div class="row"><h1 class="grow">Meetups</h1><button class="btn small" id="newm">+ New meetup</button></div>
+    <div class="card hidden" id="newf"><form id="nf"><label for="mt">Name</label><input type="text" id="mt" maxlength="80" placeholder="e.g. Spring 2027 campaign weekend" required>
+      <label for="md">What's the plan? (optional)</label><textarea id="md" maxlength="3000" placeholder="Rough idea, area, budget, games…"></textarea>
+      <button class="btn" id="mgo">Create</button></form></div>
+    ${live.length ? `<h2>Coming up</h2>${live.map(card).join('')}` : '<div class="card empty">Nothing planned. Start one!</div>'}
+    ${past.length ? `<h2 style="margin-top:24px">Past</h2>${past.map(card).join('')}` : ''}`;
+  $('#newm').onclick = () => { $('#newf').classList.toggle('hidden'); $('#mt').focus(); };
+  $('#nf').onsubmit = e => { e.preventDefault(); busy($('#mgo'), async () => {
+    const m = await sb.from('meetups').insert({ title: $('#mt').value.trim(), description: $('#md').value, created_by: me.id }).select('id').single().then(ok);
+    await sb.from('meetup_rsvps').upsert({ meetup_id: m.id, user_id: me.id, status: 'going' });
+    location.hash = 'meetup/' + m.id;
+  }); };
+}
+
+async function pageMeetup(id) {
+  if (!/^[0-9a-f-]{36}$/.test(id || '')) { location.hash = 'meetups'; return; }
+  const m = await sb.from('meetups').select('*').eq('id', id).maybeSingle().then(ok);
+  if (!m) { app.innerHTML = '<div class="card">Meetup not found.</div>'; return; }
+  const [people, opts, venues, rsvps, items, photos] = await Promise.all([
+    sb.from('profiles').select('id,display_name').order('display_name').then(ok),
+    sb.from('meetup_date_options').select('*').eq('meetup_id', id).order('start_date').then(ok),
+    sb.from('meetup_venues').select('*').eq('meetup_id', id).order('created_at').then(ok),
+    sb.from('meetup_rsvps').select('*').eq('meetup_id', id).then(ok),
+    sb.from('meetup_items').select('*').eq('meetup_id', id).order('created_at').then(ok),
+    sb.from('meetup_photos').select('*').eq('meetup_id', id).order('created_at').then(ok),
+  ]);
+  const [votes, vvotes] = await Promise.all([
+    opts.length ? sb.from('meetup_date_votes').select('*').in('option_id', opts.map(o => o.id)).then(ok) : [],
+    venues.length ? sb.from('meetup_venue_votes').select('*').in('venue_id', venues.map(v => v.id)).then(ok) : [],
+  ]);
+  const name = uid => esc(people.find(p => p.id === uid)?.display_name || '?');
+  const manager = me.is_admin || m.created_by === me.id;
+  const going = rsvps.filter(r => r.status === 'going');
+  const myR = rsvps.find(r => r.user_id === me.id)?.status;
+  const chosenVenue = venues.find(v => v.id === m.venue_id);
+  const icon = a => ({ yes: '✅', maybe: '❔', no: '❌' })[a] || '<span class="muted">·</span>';
+  const next = { undefined: 'yes', yes: 'maybe', maybe: 'no', no: null };
+
+  app.innerHTML = `
+  <p><a href="#meetups" class="muted">← All meetups</a></p>
+  <div class="card">
+    <div class="row"><h1 class="grow" style="margin:0">${esc(m.title)}</h1>${statusPill(m.status)}</div>
+    <p style="margin:8px 0 0"><b>${fmtRange(m.start_date, m.end_date)}</b>${chosenVenue ? ` · <b>${chosenVenue.url ? `<a href="${esc(chosenVenue.url)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(chosenVenue.name)}</a>` : esc(chosenVenue.name)}</b>` : ''}</p>
+    ${m.description ? `<div class="notes" style="margin-top:12px">${esc(m.description)}</div>` : ''}
+    ${m.details ? `<h3 style="margin-top:14px">Address &amp; arrival details</h3><div class="notes">${esc(m.details)}</div>` : ''}
+    ${manager ? `<button class="btn small ghost" id="edit" style="margin-top:14px">Edit meetup</button>
+    <form id="ef" class="hidden">
+      <label for="et">Name</label><input type="text" id="et" maxlength="80" value="${esc(m.title)}" required>
+      <label for="ed">Plan</label><textarea id="ed" maxlength="3000">${esc(m.description)}</textarea>
+      <label for="edt">Address &amp; arrival details (door codes, check-in time, parking)</label><textarea id="edt" maxlength="3000">${esc(m.details)}</textarea>
+      <div class="row"><div><label for="es">Starts</label><input type="date" id="es" value="${m.start_date || ''}"></div><div><label for="ee">Ends</label><input type="date" id="ee" value="${m.end_date || ''}"></div>
+      <div><label for="est">Status</label><select id="est" style="padding:10px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px">${['planning','confirmed','done','cancelled'].map(s => `<option ${s === m.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div></div>
+      <button class="btn" id="esave">Save</button> <button type="button" class="btn danger" id="edel">Delete meetup</button>
+    </form>` : ''}
+  </div>
+
+  <div class="card"><h2>Who's coming</h2>
+    <div class="row">${[['going','I\'m going'],['maybe','Maybe'],['not','Can\'t make it']].map(([s, l]) => `<button class="btn small ${myR === s ? '' : 'ghost'}" data-rsvp="${s}">${l}</button>`).join('')}</div>
+    <p style="margin-bottom:0"><b>Going (${going.length}):</b> ${going.map(r => name(r.user_id)).join(', ') || '—'}<br>
+    <span class="muted">Maybe: ${rsvps.filter(r => r.status === 'maybe').map(r => name(r.user_id)).join(', ') || '—'} · Can't: ${rsvps.filter(r => r.status === 'not').map(r => name(r.user_id)).join(', ') || '—'} · No answer: ${people.filter(p => !rsvps.some(r => r.user_id === p.id)).map(p => esc(p.display_name)).join(', ') || '—'}</span></p>
+  </div>
+
+  <div class="card"><h2>When?</h2>
+    <p class="muted" style="margin-top:0">Add the dates that could work, then tap your column to answer: ✅ yes → ❔ maybe → ❌ no.</p>
+    ${opts.length ? `<div style="overflow-x:auto"><table><tr><th>Dates</th>${people.map(p => `<th style="text-align:center">${esc(p.display_name)}</th>`).join('')}<th>Yes</th><th></th></tr>
+      ${opts.map(o => { const vs = votes.filter(v => v.option_id === o.id), yes = vs.filter(v => v.answer === 'yes').length;
+        const chosen = m.start_date === o.start_date && m.end_date === o.end_date;
+        return `<tr${chosen ? ' style="background:rgba(212,166,74,.12)"' : ''}><td>${fmtRange(o.start_date, o.end_date)}${chosen ? ' <span class="pill gold">chosen</span>' : ''}</td>
+        ${people.map(p => { const a = vs.find(v => v.user_id === p.id)?.answer;
+          return p.id === me.id ? `<td style="text-align:center"><button class="btn small ghost" data-vote="${o.id}" data-cur="${a || ''}" title="Change my answer">${icon(a)}</button></td>` : `<td style="text-align:center">${icon(a)}</td>`; }).join('')}
+        <td><b>${yes}</b>/${people.length}</td>
+        <td style="text-align:right;white-space:nowrap">${manager && !chosen ? `<button class="btn small" data-pick="${o.id}">Pick</button>` : ''}
+          ${manager || o.added_by === me.id ? `<button class="btn small ghost" data-delopt="${o.id}" title="Remove">✕</button>` : ''}</td></tr>`; }).join('')}
+    </table></div>` : '<p class="muted">No dates suggested yet.</p>'}
+    <form id="of" class="row" style="margin-top:12px"><div><label for="os">From</label><input type="date" id="os" required></div><div><label for="oe">To</label><input type="date" id="oe"></div>
+      <div><label>&nbsp;</label><button class="btn small" id="ogo">Suggest dates</button></div></form>
+  </div>
+
+  <div class="card"><h2>Where?</h2>
+    ${venues.length ? `<div class="grid">${venues.map(v => { const vs = vvotes.filter(x => x.venue_id === v.id), mine = vs.some(x => x.user_id === me.id), chosen = v.id === m.venue_id;
+      const heads = Math.max(going.length, 1);
+      return `<div class="card" style="margin:0;${chosen ? 'border-color:var(--gold)' : ''}">
+        <div class="row"><h3 class="grow" style="margin:0">${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener" style="color:var(--gold2)">${esc(v.name)} ↗</a>` : esc(v.name)}</h3>${chosen ? '<span class="pill gold">chosen</span>' : ''}</div>
+        <p class="muted" style="margin:6px 0">${v.total_price != null ? `${money(v.total_price)} total · <b style="color:var(--text)">${money(v.total_price / heads)} each</b> for ${heads} going` : 'No price yet'}${v.sleeps ? ` · sleeps ${v.sleeps}` : ''}</p>
+        ${v.notes ? `<div class="notes" style="font-size:14px">${esc(v.notes)}</div>` : ''}
+        <p style="margin:10px 0 0">👍 ${vs.length}${vs.length ? ': ' + vs.map(x => name(x.user_id)).join(', ') : ''}</p>
+        <div class="row" style="margin-top:10px"><button class="btn small ${mine ? '' : 'ghost'}" data-vv="${v.id}" data-on="${mine}">${mine ? 'Voted' : 'Vote'}</button>
+          ${manager && !chosen ? `<button class="btn small" data-choose="${v.id}">Choose</button>` : ''}
+          ${manager || v.added_by === me.id ? `<button class="btn small ghost" data-delv="${v.id}">Remove</button>` : ''}</div></div>`; }).join('')}</div>` : '<p class="muted" style="margin-top:0">No places suggested yet.</p>'}
+    <details style="margin-top:14px"><summary class="btn small ghost" style="list-style:none">+ Suggest a place</summary>
+      <form id="vf"><label for="vn">Name</label><input type="text" id="vn" maxlength="120" required placeholder="e.g. The Old Barn, Snowdonia">
+        <label for="vu">Link (Airbnb, Vrbo, cottage site…)</label><input type="text" id="vu" placeholder="https://…">
+        <div class="row"><div><label for="vp">Total price £</label><input type="number" id="vp" min="0" step="0.01"></div><div><label for="vs">Sleeps</label><input type="number" id="vs" min="1"></div></div>
+        <label for="vno">Notes</label><textarea id="vno" maxlength="1000" placeholder="Big table for gaming? Parking? Pub nearby?"></textarea>
+        <button class="btn" id="vgo">Add place</button></form></details>
+  </div>
+
+  <div class="card"><h2>Who's bringing what</h2>
+    ${items.length ? `<table>${items.map(i => `<tr><td>${esc(i.label)}</td><td>${i.claimed_by ? `<b>${name(i.claimed_by)}</b>` : '<span class="muted">nobody yet</span>'}</td>
+      <td style="text-align:right;white-space:nowrap">${!i.claimed_by ? `<button class="btn small" data-claim="${i.id}">I'll bring it</button>` : i.claimed_by === me.id ? `<button class="btn small ghost" data-unclaim="${i.id}">Unclaim</button>` : ''}
+      ${manager || i.added_by === me.id ? `<button class="btn small ghost" data-deli="${i.id}" title="Remove">✕</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:0">Nothing on the list yet: terrain, armies, dice towers, snacks, projector…</p>'}
+    <form id="itf" class="row" style="margin-top:12px"><input type="text" id="itl" class="grow" maxlength="120" placeholder="Add something that needs bringing" required><button class="btn small" id="itgo">Add</button></form>
+  </div>
+
+  <div class="card"><h2>Photos</h2>
+    ${photos.length ? `<div class="gallery">${photos.map(p => `<div class="mini" data-src="${photoUrl(p.path)}" data-cap="${esc(p.caption)}">
+      <img loading="lazy" src="${photoUrl(p.path)}" alt="${esc(p.caption)}"><div><b>${esc(p.caption || ' ')}</b><span class="muted">${name(p.user_id)}</span>
+      ${p.user_id === me.id || manager ? ` · <a href="#" data-delp="${p.id}" style="color:var(--muted)">remove</a>` : ''}</div></div>`).join('')}</div>` : '<p class="muted" style="margin-top:0">No photos yet. Add battle shots and the obligatory group photo afterwards.</p>'}
+    <form id="phf" class="row" style="margin-top:12px"><input type="file" id="phi" accept="image/*" multiple required><input type="text" id="phc" class="grow" maxlength="200" placeholder="Caption (optional)"><button class="btn small" id="phgo">Upload</button></form>
+  </div>`;
+
+  const reload = () => pageMeetup(id);
+  const run = (el, fn) => busy(el, async () => { await fn(); await reload(); });
+  if (manager) {
+    $('#edit').onclick = () => $('#ef').classList.toggle('hidden');
+    $('#ef').onsubmit = e => { e.preventDefault(); run($('#esave'), async () => ok(await sb.from('meetups').update({
+      title: $('#et').value.trim(), description: $('#ed').value, details: $('#edt').value, status: $('#est').value,
+      start_date: $('#es').value || null, end_date: $('#ee').value || $('#es').value || null }).eq('id', id))); };
+    $('#edel').onclick = e => {
+      if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = 'Click again to delete for everyone'; return; }
+      busy(e.target, async () => { ok(await sb.from('meetups').delete().eq('id', id)); location.hash = 'meetups'; });
+    };
+  }
+  $$('[data-rsvp]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('meetup_rsvps').upsert({ meetup_id: id, user_id: me.id, status: b.dataset.rsvp }))));
+  $$('[data-vote]').forEach(b => b.onclick = () => run(b, async () => {
+    const a = next[b.dataset.cur || undefined];
+    ok(a ? await sb.from('meetup_date_votes').upsert({ option_id: b.dataset.vote, user_id: me.id, answer: a })
+         : await sb.from('meetup_date_votes').delete().eq('option_id', b.dataset.vote).eq('user_id', me.id));
+  }));
+  $$('[data-pick]').forEach(b => b.onclick = () => run(b, async () => { const o = opts.find(x => x.id === b.dataset.pick);
+    ok(await sb.from('meetups').update({ start_date: o.start_date, end_date: o.end_date }).eq('id', id)); }));
+  $$('[data-delopt]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('meetup_date_options').delete().eq('id', b.dataset.delopt))));
+  $('#of').onsubmit = e => { e.preventDefault(); run($('#ogo'), async () => {
+    const s = $('#os').value, en = $('#oe').value || s; if (en < s) throw new Error('End date is before the start');
+    ok(await sb.from('meetup_date_options').insert({ meetup_id: id, start_date: s, end_date: en, added_by: me.id }));
+    await sb.from('meetup_date_votes').upsert({ option_id: (await sb.from('meetup_date_options').select('id').eq('meetup_id', id).eq('start_date', s).eq('end_date', en).single().then(ok)).id, user_id: me.id, answer: 'yes' });
+  }); };
+  $$('[data-vv]').forEach(b => b.onclick = () => run(b, async () => ok(b.dataset.on === 'true'
+    ? await sb.from('meetup_venue_votes').delete().eq('venue_id', b.dataset.vv).eq('user_id', me.id)
+    : await sb.from('meetup_venue_votes').insert({ venue_id: b.dataset.vv, user_id: me.id }))));
+  $$('[data-choose]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('meetups').update({ venue_id: b.dataset.choose }).eq('id', id))));
+  $$('[data-delv]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('meetup_venues').delete().eq('id', b.dataset.delv))));
+  $('#vf').onsubmit = e => { e.preventDefault(); run($('#vgo'), async () => {
+    const url = $('#vu').value.trim();
+    if (url && !/^https?:\/\//.test(url)) throw new Error('Link should start with https://');
+    ok(await sb.from('meetup_venues').insert({ meetup_id: id, name: $('#vn').value.trim(), url: url || null,
+      total_price: $('#vp').value === '' ? null : +$('#vp').value, sleeps: $('#vs').value === '' ? null : +$('#vs').value, notes: $('#vno').value, added_by: me.id }));
+  }); };
+  $$('[data-claim]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('meetup_items').update({ claimed_by: me.id }).eq('id', b.dataset.claim))));
+  $$('[data-unclaim]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('meetup_items').update({ claimed_by: null }).eq('id', b.dataset.unclaim))));
+  $$('[data-deli]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('meetup_items').delete().eq('id', b.dataset.deli))));
+  $('#itf').onsubmit = e => { e.preventDefault(); run($('#itgo'), async () => ok(await sb.from('meetup_items').insert({ meetup_id: id, label: $('#itl').value.trim(), added_by: me.id }))); };
+  $$('.mini').forEach(el => el.onclick = ev => { if (ev.target.dataset.delp) return; lightbox(el.dataset.src, el.dataset.cap); });
+  $$('[data-delp]').forEach(a => a.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); run(a, async () => ok(await sb.from('meetup_photos').delete().eq('id', a.dataset.delp))); });
+  $('#phf').onsubmit = e => { e.preventDefault(); run($('#phgo'), async () => {
+    const yr = (m.start_date || todayISO()).slice(0, 4);
+    for (const f of $('#phi').files) {
+      const path = await uploadPhoto(f, 'meetups', yr);
+      ok(await sb.from('meetup_photos').insert({ meetup_id: id, path, caption: $('#phc').value.trim(), user_id: me.id }));
+    }
+  }); };
+}
+
+// ---------- birthdays ----------
+const giftPill = s => ({ planning: '<span class="pill">Planning</span>', bought: '<span class="pill gold">Bought</span>', given: '<span class="pill ok">Given</span>' })[s] || '';
+const daysUntil = d => Math.round((new Date(d + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / 864e5);
+
+async function pageBirthdays() {
+  await sb.rpc('open_gift_plans');
+  const [people, gifts] = await Promise.all([
+    sb.from('profiles').select('id,display_name,birthday').then(ok),
+    sb.from('gifts').select('*').order('birthday_on', { ascending: false }).then(ok),
+  ]);
+  const name = uid => esc(people.find(p => p.id === uid)?.display_name || '?');
+  const open = gifts.filter(g => g.status !== 'given').sort((a, b) => a.birthday_on < b.birthday_on ? -1 : 1);
+  const given = gifts.filter(g => g.status === 'given');
+  const upcoming = people.map(p => ({ ...p, nb: nextBirthday(p.birthday) })).sort((a, b) => (a.nb?.days ?? 1e9) - (b.nb?.days ?? 1e9));
+  app.innerHTML = `<h1>Birthdays</h1>
+  <p class="muted" style="margin-top:-8px">A gift plan opens automatically 4 weeks before each birthday, hidden from the birthday person until the present is handed over. Everyone else chips in the same amount (£25 unless the group changes it).</p>
+  <div class="card"><h2>Gift plans on the go</h2>
+    ${open.length ? open.map(g => `<a href="#gift/${g.id}" class="row" style="text-decoration:none;color:inherit;padding:10px 0;border-bottom:1px solid var(--line)">
+      <span class="grow"><b>${name(g.recipient_id)}</b> · ${dayMonth(g.birthday_on)} <span class="muted">(${daysUntil(g.birthday_on) >= 0 ? 'in ' + daysUntil(g.birthday_on) + ' days' : 'passed'})</span></span>
+      ${giftPill(g.status)} ${g.buyer_id ? `<span class="muted">buyer: ${name(g.buyer_id)}</span>` : '<span class="muted">no buyer yet</span>'}</a>`).join('')
+      : '<p class="muted">Nothing open right now.</p>'}
+  </div>
+  <div class="card"><h2>Everyone's birthdays</h2><table>
+    ${upcoming.map(p => { const has = p.nb && gifts.some(g => g.recipient_id === p.id && g.birthday_on === p.nb.date.toLocaleDateString('en-CA'));
+      return `<tr><td>${esc(p.display_name)}</td><td>${dayMonth(p.birthday)}</td><td class="muted">${p.nb ? (p.nb.days === 0 ? 'today!' : `in ${p.nb.days} days`) : 'not added'}</td>
+      <td style="text-align:right">${p.id === me.id ? '<span class="muted">that\'s you: no peeking</span>' : !p.nb ? '' : has ? '<span class="muted">plan open</span>' : `<button class="btn small ghost" data-start="${p.id}">Start planning now</button>`}</td></tr>`; }).join('')}
+  </table></div>
+  ${given.length ? `<div class="card"><h2>Presents past</h2><div class="gallery">${given.map(g => `<a class="mini" href="#gift/${g.id}" style="text-decoration:none;color:inherit;cursor:pointer">
+    ${g.photo_path ? `<img loading="lazy" src="${photoUrl(g.photo_path)}" alt="">` : '<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:48px;background:#000">🎁</div>'}
+    <div><b>${esc(g.gift_title || 'Present')}</b><span class="muted">for ${name(g.recipient_id)}, ${new Date(g.birthday_on).getFullYear()}</span></div></a>`).join('')}</div></div>` : ''}`;
+  $$('[data-start]').forEach(b => b.onclick = () => busy(b, async () => { const gid = await rpc('start_gift_plan', { p_recipient: b.dataset.start }); location.hash = 'gift/' + gid; }));
+}
+
+async function pageGift(id) {
+  if (!/^[0-9a-f-]{36}$/.test(id || '')) { location.hash = 'birthdays'; return; }
+  const g = await sb.from('gifts').select('*').eq('id', id).maybeSingle().then(ok);
+  if (!g) { app.innerHTML = '<div class="card">Not found. (If it\'s your own birthday, that\'s on purpose.)</div>'; return; }
+  const [people, ideas, contribs] = await Promise.all([
+    sb.from('profiles').select('id,display_name,wishlist,armies').then(ok),
+    sb.from('gift_ideas').select('*').eq('gift_id', id).order('created_at').then(ok),
+    sb.from('gift_contributions').select('*').eq('gift_id', id).then(ok),
+  ]);
+  const votes = ideas.length ? await sb.from('gift_idea_votes').select('*').in('idea_id', ideas.map(i => i.id)).then(ok) : [];
+  const name = uid => esc(people.find(p => p.id === uid)?.display_name || '?');
+  const r = people.find(p => p.id === g.recipient_id) || {};
+  const chippers = people.length - 1, pot = chippers * Number(g.per_person);
+  const iAmBuyer = g.buyer_id === me.id, isRecipient = g.recipient_id === me.id;
+  const ranked = ideas.map(i => ({ ...i, vs: votes.filter(v => v.idea_id === i.id) })).sort((a, b) => b.vs.length - a.vs.length);
+  const top = ranked[0];
+
+  app.innerHTML = `<p><a href="#birthdays" class="muted">← Birthdays</a></p>
+  <div class="card">
+    <div class="row"><h1 class="grow" style="margin:0">🎁 ${esc(r.display_name)}'s birthday</h1>${giftPill(g.status)}</div>
+    <p style="margin:6px 0 0"><b>${fmtD(g.birthday_on)}</b> <span class="muted">${daysUntil(g.birthday_on) >= 0 ? '· in ' + daysUntil(g.birthday_on) + ' days' : ''}</span></p>
+    ${g.status !== 'given' ? `<p class="muted" style="margin:8px 0 0">🔒 Hidden from ${esc(r.display_name)} until it's marked as given.</p>` : ''}
+  </div>
+
+  ${g.status === 'given' ? `<div class="card"><h2>The present</h2>
+    ${g.photo_path ? `<img src="${photoUrl(g.photo_path)}" alt="" style="max-width:100%;max-height:420px;border-radius:10px;display:block;margin-bottom:12px">` : ''}
+    <p style="font-size:18px;margin:0"><b>${g.gift_url ? `<a href="${esc(g.gift_url)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(g.gift_title || 'Present')}</a>` : esc(g.gift_title || 'Present')}</b></p>
+    <p class="muted">From ${contribs.map(c => name(c.user_id)).join(', ') || 'the Warband'}${g.buyer_id ? `. Bought by ${name(g.buyer_id)}` : ''}.</p></div>` : `
+  <div class="card"><h2>What they're into</h2>
+    ${r.armies ? `<h3>Armies</h3><div class="notes">${esc(r.armies)}</div>` : ''}
+    ${r.wishlist ? `<h3 style="margin-top:12px">Wishlist</h3><div class="notes">${esc(r.wishlist)}</div>` : '<p class="muted">No wishlist on their profile.</p>'}
+  </div>
+  <div class="card"><h2>The pot</h2>
+    <form id="ppf" class="row"><span>£</span><input type="number" id="pp" min="0" step="0.5" value="${Number(g.per_person)}" style="width:100px" ${g.status !== 'planning' ? 'disabled' : ''}>
+      <span>each × ${chippers} people = <b style="font-size:18px">${money(pot)}</b></span>
+      ${g.status === 'planning' ? '<button class="btn small ghost" id="ppgo">Update</button>' : ''}</form>
+  </div>`}
+
+  ${g.status === 'planning' ? `<div class="card"><h2>Ideas</h2>
+    ${ranked.length ? `<table>${ranked.map(i => { const mine = i.vs.some(v => v.user_id === me.id);
+      return `<tr><td>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" style="color:var(--gold2)">${esc(i.title)} ↗</a>` : esc(i.title)}
+        ${i.price != null ? `<span class="muted"> · ${money(i.price)}${Number(i.price) > pot ? ' (over the pot)' : ''}</span>` : ''}<br><span class="muted" style="font-size:13px">by ${name(i.added_by)}${i.vs.length ? ' · 👍 ' + i.vs.map(v => name(v.user_id)).join(', ') : ''}</span></td>
+        <td style="text-align:right;white-space:nowrap"><button class="btn small ${mine ? '' : 'ghost'}" data-iv="${i.id}" data-on="${mine}">👍 ${i.vs.length}</button>
+        ${i.added_by === me.id || me.is_admin ? `<button class="btn small ghost" data-deli="${i.id}">✕</button>` : ''}</td></tr>`; }).join('')}</table>` : '<p class="muted" style="margin-top:0">No ideas yet. Check their wishlist above.</p>'}
+    <form id="idf" style="margin-top:12px"><div class="row"><input type="text" id="it" class="grow" maxlength="160" placeholder="Idea, e.g. Combat Patrol: Necrons" required>
+      <input type="number" id="ip" min="0" step="0.01" placeholder="£ price" style="width:110px"></div>
+      <div class="row" style="margin-top:8px"><input type="text" id="iu" class="grow" placeholder="Link (optional)"><button class="btn small" id="igo">Add idea</button></div></form>
+  </div>
+  <div class="card"><h2>Who's buying?</h2>
+    ${g.buyer_id ? `<p><b>${name(g.buyer_id)}</b> is buying it.</p>` : '<p class="muted">Nobody yet. One person buys it and everyone pays them back.</p>'}
+    ${!g.buyer_id ? '<button class="btn" id="claim">I\'ll buy it</button>' : iAmBuyer ? '<button class="btn small ghost" id="unclaim">Actually, someone else can</button>' : ''}
+    ${iAmBuyer ? `<form id="bf" style="margin-top:16px"><h3>Bought it? Record it</h3>
+      <label for="bt">What did you get?</label><input type="text" id="bt" maxlength="160" value="${esc(top?.title || '')}" required>
+      <label for="bu">Link</label><input type="text" id="bu" value="${esc(top?.url || '')}">
+      <label for="bc">What it cost in total £</label><input type="number" id="bc" min="0" step="0.01" value="${top?.price ?? ''}" required>
+      <button class="btn" id="bgo">Mark as bought</button>
+      <p class="muted" style="font-size:13px">This asks everyone except ${esc(r.display_name)} for ${money(g.per_person)} each.</p></form>` : ''}
+  </div>` : ''}
+
+  ${g.status === 'bought' ? `<div class="card"><h2>Bought: ${g.gift_url ? `<a href="${esc(g.gift_url)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(g.gift_title)}</a>` : esc(g.gift_title)}</h2>
+    <p>${name(g.buyer_id)} paid ${money(g.total_cost)}. The pot is ${money(pot)}${Number(g.total_cost) !== pot ? ` (${Number(g.total_cost) > pot ? money(Number(g.total_cost) - pot) + ' short' : money(pot - Number(g.total_cost)) + ' spare'})` : ''}.</p>
+    <h3>Paying ${name(g.buyer_id)} back</h3>
+    <table>${contribs.map(c => `<tr><td>${name(c.user_id)}</td><td>${money(c.amount)}</td><td>${c.paid ? '<span class="pill ok">Paid</span>' : '<span class="pill">Owes</span>'}</td>
+      <td style="text-align:right">${(c.user_id === me.id || iAmBuyer) && c.user_id !== g.buyer_id ? `<button class="btn small ghost" data-paid="${c.user_id}" data-to="${!c.paid}">${c.paid ? 'Undo' : c.user_id === me.id ? 'I\'ve paid' : 'Mark paid'}</button>` : ''}</td></tr>`).join('')}</table>
+    ${iAmBuyer ? `<form id="gf" style="margin-top:16px"><h3>Handed it over?</h3>
+      <label for="gph">Photo of the present (optional)</label><input type="file" id="gph" accept="image/*">
+      <button class="btn" id="ggo">Mark as given (reveals this page to ${esc(r.display_name)})</button>
+      <button type="button" class="btn small ghost" id="undo" style="margin-left:8px">Undo "bought"</button></form>` : ''}
+  </div>` : ''}`;
+
+  const reload = () => pageGift(id);
+  const run = (el, fn) => busy(el, async () => { await fn(); await reload(); });
+  if ($('#ppf') && g.status === 'planning') $('#ppf').onsubmit = e => { e.preventDefault(); run($('#ppgo'), async () => ok(await sb.from('gifts').update({ per_person: +$('#pp').value }).eq('id', id))); };
+  $$('[data-iv]').forEach(b => b.onclick = () => run(b, async () => ok(b.dataset.on === 'true'
+    ? await sb.from('gift_idea_votes').delete().eq('idea_id', b.dataset.iv).eq('user_id', me.id)
+    : await sb.from('gift_idea_votes').insert({ idea_id: b.dataset.iv, user_id: me.id }))));
+  $$('[data-deli]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('gift_ideas').delete().eq('id', b.dataset.deli))));
+  if ($('#idf')) $('#idf').onsubmit = e => { e.preventDefault(); run($('#igo'), async () => {
+    const url = $('#iu').value.trim(); if (url && !/^https?:\/\//.test(url)) throw new Error('Link should start with https://');
+    const ins = await sb.from('gift_ideas').insert({ gift_id: id, title: $('#it').value.trim(), url: url || null, price: $('#ip').value === '' ? null : +$('#ip').value, added_by: me.id }).select('id').single().then(ok);
+    await sb.from('gift_idea_votes').insert({ idea_id: ins.id, user_id: me.id });
+  }); };
+  if ($('#claim')) $('#claim').onclick = e => run(e.target, () => rpc('gift_claim_buyer', { p_gift: id, p_claim: true }));
+  if ($('#unclaim')) $('#unclaim').onclick = e => run(e.target, () => rpc('gift_claim_buyer', { p_gift: id, p_claim: false }));
+  if ($('#bf')) $('#bf').onsubmit = e => { e.preventDefault(); run($('#bgo'), async () => {
+    const url = $('#bu').value.trim(); if (url && !/^https?:\/\//.test(url)) throw new Error('Link should start with https://');
+    await rpc('gift_mark_bought', { p_gift: id, p_title: $('#bt').value.trim(), p_url: url, p_cost: +$('#bc').value });
+  }); };
+  $$('[data-paid]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('gift_contributions').update({ paid: b.dataset.to === 'true' }).eq('gift_id', id).eq('user_id', b.dataset.paid))));
+  if ($('#gf')) {
+    $('#gf').onsubmit = e => { e.preventDefault(); run($('#ggo'), async () => {
+      const f = $('#gph').files[0];
+      const path = f ? await uploadPhoto(f, 'gifts', g.birthday_on.slice(0, 4)) : null;
+      await rpc('gift_mark_given', { p_gift: id, p_photo: path });
+    }); };
+    $('#undo').onclick = e => run(e.target, () => rpc('gift_undo_bought', { p_gift: id }));
+  }
+}
+
+// ---------- gallery ----------
+let galKind = 'all';
+async function pageGallery() {
+  const rows = await rpc('gallery_all');
+  const kinds = [['all', 'Everything'], ['santa', '🎅 Secret Santa'], ['meetup', '🎲 Meetups'], ['gift', '🎁 Birthdays']];
+  const shown = rows.filter(r => galKind === 'all' || r.kind === galKind);
+  const years = [...new Set(shown.map(r => r.year))].sort((a, b) => b - a);
+  app.innerHTML = `<h1>Gallery</h1>
+    <div class="tabs2">${kinds.map(([k, l]) => `<button class="btn small ${k === galKind ? '' : 'ghost'}" data-gk="${k}">${l} <span style="opacity:.7">${k === 'all' ? rows.length : rows.filter(r => r.kind === k).length}</span></button>`).join('')}</div>
+    ${!shown.length ? `<div class="card empty">Nothing here yet. Photos appear when Secret Santa years are revealed, meetup photos are uploaded, and birthday presents are handed over.</div>` :
+      years.map(y => `<div class="year-h">${y}</div><div class="gallery">${shown.filter(r => r.year === y).map((r, i) => `
+        <div class="mini" data-i="${rows.indexOf(r)}"><img loading="lazy" src="${photoUrl(r.photo_path)}" alt="${esc(r.title)}">
+        <div><b>${esc(r.title)}</b><span class="muted">${{ santa: '🎅', meetup: '🎲', gift: '🎁' }[r.kind]} ${esc(r.subtitle)}</span></div></div>`).join('')}</div>`).join('')}`;
+  $$('[data-gk]').forEach(b => b.onclick = () => { galKind = b.dataset.gk; pageGallery(); });
+  $$('.mini[data-i]').forEach(el => el.onclick = () => {
+    const r = rows[+el.dataset.i];
+    const lb = document.createElement('div'); lb.className = 'lightbox';
+    lb.innerHTML = `<img src="${photoUrl(r.photo_path)}" alt=""><p><b>${esc(r.title)}</b><br><span class="muted">${esc(r.subtitle)} · ${r.year}</span></p><a class="btn small ghost" href="${r.link}">Open</a>`;
+    lb.onclick = e => { if (e.target.tagName !== 'A') lb.remove(); else lb.remove(); };
+    document.body.appendChild(lb);
+  });
+}
+
+// ---------- admin ----------
+async function pageAdmin() {
+  if (!me.is_admin) { location.hash = 'home'; return; }
+  const [people, invites, draws] = await Promise.all([
+    sb.from('profiles').select('id,display_name,santa_active,is_admin').order('created_at').then(ok),
+    rpc('admin_list_invites'), rpc('ss_progress'),
+  ]);
+  const hasThisYear = draws.some(d => d.year === THIS_YEAR);
+  app.innerHTML = `<h1>Admin</h1>
+  <div class="card"><h2>Invite someone</h2>
+    <p class="muted" style="margin-top:0">Creates a one-off link that's valid for 14 days. Send it to them privately: whoever opens it can create an account.</p>
+    <div class="row"><input type="text" id="invname" class="grow" placeholder="Their name (optional)" maxlength="40"><button class="btn small" id="invgo">Create invite link</button></div>
+    <div id="invout"></div>
+    ${invites.length ? `<h3 style="margin-top:18px">Unused links</h3><table>${invites.map(i => `<tr><td>${i.kind === 'join' ? 'Invite' : 'Password reset'}${i.display_name || i.target ? ': ' + esc(i.display_name || i.target) : ''}</td>
+      <td class="muted">expires ${new Date(i.expires_at).toLocaleDateString('en-GB')}</td>
+      <td style="text-align:right"><button class="btn small ghost" data-copy="${inviteLink(i.kind === 'join' ? 'invite' : 'reset', i.token)}">Copy link</button>
+      <button class="btn small danger" data-revoke="${i.token}">Cancel</button></td></tr>`).join('')}</table>` : ''}
+  </div>
+  <div class="card"><h2>Members</h2><table><tr><th>Name</th><th>Secret Santa</th><th></th></tr>
+    ${people.map(p => `<tr><td>${esc(p.display_name)}${p.is_admin ? ' <span class="pill gold">admin</span>' : ''}</td>
+      <td><button class="btn small ${p.santa_active ? '' : 'ghost'}" data-active="${p.id}" data-to="${!p.santa_active}">${p.santa_active ? 'In' : 'Sitting out'}</button></td>
+      <td style="text-align:right"><button class="btn small ghost" data-reset="${p.id}">Password reset link</button></td></tr>`).join('')}</table></div>
+  <div class="card"><h2>Secret Santa draw</h2>
+    <p class="muted" style="margin-top:0">Runs on the server, and nobody (including you) sees the full list. With N people, nobody repeats a person within N−1 years. It also avoids two people simply swapping where it can.</p>
+    <div class="row"><input type="number" id="dyear" value="${hasThisYear ? THIS_YEAR + 1 : THIS_YEAR}" style="width:110px">
+      <button class="btn small" id="drawgo">Draw ${people.filter(p => p.santa_active).length} people</button></div>
+    <div id="drawres"></div>
+    ${draws.length ? `<table style="margin-top:12px">${draws.map(d => `<tr><td>${d.year}</td><td>${d.finished} / ${d.people} finished</td><td style="text-align:right">
+      <button class="btn small ${d.revealed ? 'ghost' : ''}" data-reveal="${d.year}" data-to="${!d.revealed}">${d.revealed ? 'Hide gallery' : 'Reveal gallery'}</button>
+      ${d.finished === 0 ? `<button class="btn small danger" data-del="${d.year}">Delete draw</button>` : ''}</td></tr>`).join('')}</table>` : ''}
+  </div>`;
+  const showLink = (label, url) => { $('#invout').innerHTML = `<p>${label}</p><div class="linkbox">${esc(url)}</div><button class="btn small" style="margin-top:8px" id="cp">Copy</button>`; $('#cp').onclick = () => copy(url); $('#invout').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+  $('#invgo').onclick = e => busy(e.target, async () => {
+    const t = await rpc('admin_create_invite', { p_kind: 'join', p_display_name: $('#invname').value, p_user: null });
+    await pageAdmin(); showLink('Invite link created. Send it privately:', inviteLink('invite', t));
+  });
+  $$('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy));
+  $$('[data-revoke]').forEach(b => b.onclick = () => busy(b, async () => { await rpc('admin_revoke_invite', { p_token: b.dataset.revoke }); pageAdmin(); }));
+  $$('[data-reset]').forEach(b => b.onclick = () => busy(b, async () => {
+    const t = await rpc('admin_create_invite', { p_kind: 'reset', p_display_name: null, p_user: b.dataset.reset });
+    await pageAdmin(); showLink('Password reset link created. Send it to them privately:', inviteLink('reset', t));
+  }));
+  $$('[data-active]').forEach(b => b.onclick = () => busy(b, async () => { await rpc('admin_set_santa_active', { p_user: b.dataset.active, p_active: b.dataset.to === 'true' }); pageAdmin(); }));
+  $$('[data-reveal]').forEach(b => b.onclick = () => busy(b, async () => { await rpc('ss_set_revealed', { p_year: +b.dataset.reveal, p_revealed: b.dataset.to === 'true' }); pageAdmin(); }));
+  $$('[data-del]').forEach(b => b.onclick = () => {
+    if (b.dataset.armed) return busy(b, async () => { await rpc('ss_delete_draw', { p_year: +b.dataset.del }); pageAdmin(); });
+    b.dataset.armed = 1; b.textContent = 'Click again to delete';
+  });
+  $('#drawgo').onclick = e => busy(e.target, async () => {
+    const r = await rpc('ss_run_draw', { p_year: +$('#dyear').value });
+    await pageAdmin();
+    $('#drawres').innerHTML = `<p>✅ ${r.year} drawn for ${r.people} people. ${r.repeat_pairs ? `${r.repeat_pairs} pairing(s) had happened before; the most recent was ${r.shortest_gap_years} year(s) ago, and that was the best possible.` : 'Every pairing is brand new.'}</p>`;
+  });
+}
+
+route();
+</script>
+</body>
+</html>

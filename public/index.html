@@ -117,9 +117,9 @@ function nextBirthday(d) {
 const dayMonth = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : '—';
 
 // ---------- routing ----------
-const routes = { home: pageHome, meetups: pageMeetups, meetup: pageMeetup, birthdays: pageBirthdays, gift: pageGift, gallery: pageGallery, members: pageMembers, santa: pageSanta, profile: pageProfile, admin: pageAdmin };
+const routes = { home: pageHome, meetups: pageMeetups, meetup: pageMeetup, birthdays: pageBirthdays, gift: pageGift, ventures: pageVentures, venture: pageVenture, gallery: pageGallery, members: pageMembers, santa: pageSanta, profile: pageProfile, admin: pageAdmin };
 function drawNav(active) {
-  const items = [['home','Home'],['meetups','Meetups'],['birthdays','Birthdays'],['gallery','Gallery'],['members','Members'],['santa','Secret Santa'],['profile','My profile']];
+  const items = [['home','Home'],['meetups','Meetups'],['birthdays','Birthdays'],['ventures','Ventures'],['gallery','Gallery'],['members','Members'],['santa','Secret Santa'],['profile','My profile']];
   if (me?.is_admin) items.push(['admin','Admin']);
   $('#nav').innerHTML = items.map(([k, l]) => `<a href="#${k}" class="${k === active ? 'on' : ''}">${l}</a>`).join('') + `<a href="#" id="signout">Sign out</a>`;
   $('#signout').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); me = null; location.hash = ''; route(); };
@@ -135,11 +135,11 @@ async function route() {
     if (!data) { await sb.auth.signOut(); toast('No member profile for this account', true); return pageLogin(); }
     me = data;
   }
-  const [base, arg] = h.split('/');
+  const [base, arg, arg2] = h.split('/');
   const page = routes[base] ? base : 'home';
-  $('#hdr').classList.remove('hidden'); drawNav(page === 'meetup' ? 'meetups' : page === 'gift' ? 'birthdays' : page);
+  $('#hdr').classList.remove('hidden'); drawNav({ meetup: 'meetups', gift: 'birthdays', venture: 'ventures' }[page] || page);
   app.innerHTML = '<div class="empty">Loading…</div>';
-  try { await routes[page](arg); } catch (e) { app.innerHTML = `<div class="card">${esc(e.message)}</div>`; }
+  try { await routes[page](arg, arg2); } catch (e) { app.innerHTML = `<div class="card">${esc(e.message)}</div>`; }
 }
 addEventListener('hashchange', route);
 
@@ -188,6 +188,8 @@ async function pageHome() {
   const bdays = people.map(p => ({ ...p, nb: nextBirthday(p.birthday) })).filter(p => p.nb).sort((a, b) => a.nb.days - b.nb.days);
   const santa = assignments[0];
   const nm = await nextMeetup();
+  const vdir = await rpc('ventures_directory');
+  const vAsk = vdir.filter(v => v.stage === 'proposal' && !v.my_response), vMine = vdir.filter(v => v.i_am_member && ['chartering', 'active'].includes(v.stage));
   const missing = people.filter(p => !p.birthday).map(p => p.display_name);
   app.innerHTML = `<h1>Hail, ${esc(me.display_name)}</h1>
   ${!me.birthday ? `<div class="card"><b>Add your birthday</b> so the group can plan your present. <a href="#profile" class="btn small" style="margin-left:8px">Edit profile</a></div>` : ''}
@@ -204,6 +206,12 @@ async function pageHome() {
     <div class="card"><h2>Next meetup</h2>
       ${nm ? `<p><b>${esc(nm.title)}</b> ${statusPill(nm.status)}<br><span class="muted">${fmtRange(nm.start_date, nm.end_date)}</span></p><a class="btn small" href="#meetup/${nm.id}">Open</a>`
         : '<p class="muted">Nothing planned.</p><a class="btn small ghost" href="#meetups">Plan one</a>'}
+    </div>
+    <div class="card"><h2>Ventures</h2>
+      ${vAsk.length ? `<p><b>${vAsk.length} proposal${vAsk.length > 1 ? 's' : ''} waiting for your answer:</b> ${vAsk.map(v => `<a href="#venture/${v.id}" style="color:var(--gold)">${esc(v.title)}</a>`).join(', ')}</p>` : ''}
+      ${vMine.length ? `<p>Yours: ${vMine.map(v => `<a href="#venture/${v.id}" style="color:var(--gold)">${esc(v.title)}</a>${v.stage === 'chartering' ? ' <span class="pill">charter</span>' : ''}`).join(', ')}</p>` : ''}
+      ${!vAsk.length && !vMine.length ? '<p class="muted">Nothing needs you right now.</p>' : ''}
+      <a class="btn small ghost" href="#ventures">Open ventures</a>
     </div>
     <div class="card"><h2>The Warband</h2><p>${people.length} members.</p><a class="btn small ghost" href="#members">See everyone</a></div>
   </div>`;
@@ -619,6 +627,357 @@ async function pageGift(id) {
     $('#undo').onclick = e => run(e.target, () => rpc('gift_undo_bought', { p_gift: id }));
   }
 }
+
+// ---------- ventures ----------
+const vStagePill = s => ({ idea: '<span class="pill">Idea</span>', proposal: '<span class="pill gold">Proposal</span>', declined: '<span class="pill">Withdrawn</span>',
+  chartering: '<span class="pill gold">Agreeing charter</span>', active: '<span class="pill ok">Active</span>', closed: '<span class="pill">Closed</span>' })[s] || '';
+const healthPill = h => ({ on_track: '<span class="pill ok">On track</span>', at_risk: '<span class="pill gold">At risk</span>', off_track: '<span class="pill" style="color:#e07a70;border-color:#e07a70">Off track</span>' })[h] || '';
+const respLabel = { in: "🙋 I'm in", support: '👍 Support, not joining', concern: '⚠️ Concern' };
+const PROPOSAL_FIELDS = [
+  ['problem', 'The problem', 'What is wrong or missing today, and for whom?'],
+  ['idea', 'The idea', 'What would we build or sell?'],
+  ['audience', "Who it's for", 'Who pays, and how do we reach them?'],
+  ['time_needed', 'Time it needs', 'e.g. 4 hours a week each for 3 months'],
+  ['money_needed', 'Money it needs', 'e.g. £300 up front for stock and a domain'],
+  ['skills', 'Skills needed', 'e.g. 3D modelling, shop setup, photography'],
+  ['first_milestone', 'First milestone', 'The first concrete thing that proves it works'],
+  ['success', 'Success in 6 months looks like…', ''],
+  ['risks', "Risks, and what happens if it fails", ''],
+];
+
+async function pageVentures() {
+  const rows = await rpc('ventures_directory');
+  const by = s => rows.filter(v => v.stage === s);
+  const ask = by('proposal').filter(v => !v.my_response);
+  const live = rows.filter(v => ['chartering', 'active'].includes(v.stage));
+  const row = v => {
+    const open = ['idea', 'proposal', 'declined'].includes(v.stage) || v.i_am_member;
+    const inner = `<div class="row"><b class="grow">${esc(v.title)}</b>${vStagePill(v.stage)}</div>
+      ${v.summary ? `<div class="muted" style="font-size:14px;margin-top:4px">${esc(v.summary)}</div>` : ''}
+      <div class="muted" style="font-size:13px;margin-top:4px">${v.stage === 'proposal' ? `🙋 ${v.ins} in · 👍 ${v.supports} · ⚠️ ${v.concerns}${v.decide_by ? ' · decide by ' + dayMonth(v.decide_by) : ''}`
+        : v.members.length ? 'Members: ' + esc(v.members.join(', ')) : ''}${!open ? ' · 🔒 private to its members' : ''}</div>`;
+    return open ? `<a href="#venture/${v.id}" class="card" style="display:block;text-decoration:none;color:inherit;margin-bottom:10px;padding:14px 16px">${inner}</a>`
+      : `<div class="card" style="margin-bottom:10px;padding:14px 16px;opacity:.8">${inner}</div>`;
+  };
+  app.innerHTML = `<div class="row"><h1 class="grow">Ventures</h1><button class="btn small" id="newv">+ New idea</button></div>
+    <p class="muted" style="margin-top:-8px">Ideas anyone can float → proposals the group answers → launch once 2+ people are in → a charter everyone involved agrees → a private workspace for the people in it.</p>
+    <div class="card hidden" id="newvf"><form id="nvf"><label for="vt">Idea in a few words</label><input type="text" id="vt" maxlength="100" required placeholder="e.g. Print-on-demand terrain shop">
+      <label for="vsu">One or two lines on it</label><textarea id="vsu" maxlength="1000" style="min-height:60px"></textarea>
+      <label style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="checkbox" id="vprop"> Go straight to a full proposal</label>
+      <button class="btn" id="vgo">Post</button></form></div>
+    ${ask.length ? `<h2>Waiting for your answer</h2>${ask.map(row).join('')}` : ''}
+    <h2 style="margin-top:20px">Proposals</h2>${by('proposal').length ? by('proposal').map(row).join('') : '<p class="muted">No open proposals.</p>'}
+    <h2 style="margin-top:20px">Active</h2>${live.length ? live.map(row).join('') : '<p class="muted">No ventures running yet.</p>'}
+    <h2 style="margin-top:20px">Ideas</h2>${by('idea').length ? by('idea').map(row).join('') : '<p class="muted">No loose ideas. Float one!</p>'}
+    ${by('closed').length || by('declined').length ? `<h2 style="margin-top:20px">Closed &amp; withdrawn</h2>${[...by('closed'), ...by('declined')].map(row).join('')}` : ''}`;
+  $('#newv').onclick = () => { $('#newvf').classList.toggle('hidden'); $('#vt').focus(); };
+  $('#nvf').onsubmit = e => { e.preventDefault(); busy($('#vgo'), async () => {
+    const v = await sb.from('ventures').insert({ title: $('#vt').value.trim(), summary: $('#vsu').value, stage: $('#vprop').checked ? 'proposal' : 'idea', created_by: me.id }).select('id').single().then(ok);
+    location.hash = 'venture/' + v.id + ($('#vprop').checked ? '/edit' : '');
+  }); };
+}
+
+async function pageVenture(id, tab) {
+  if (!/^[0-9a-f-]{36}$/.test(id || '')) { location.hash = 'ventures'; return; }
+  const v = await sb.from('ventures').select('*').eq('id', id).maybeSingle().then(ok);
+  if (!v) { app.innerHTML = `<p><a href="#ventures" class="muted">← Ventures</a></p><div class="card">🔒 This venture is private to its members.</div>`; return; }
+  const people = await sb.from('profiles').select('id,display_name').order('display_name').then(ok);
+  const name = uid => esc(people.find(p => p.id === uid)?.display_name || '?');
+  if (['idea', 'proposal', 'declined'].includes(v.stage)) return ventureProposal(v, people, name, tab);
+  return ventureWorkspace(v, people, name, tab);
+}
+
+async function ventureProposal(v, people, name, tab) {
+  const id = v.id, mine = v.created_by === me.id || me.is_admin;
+  const [resps, comments] = await Promise.all([
+    sb.from('venture_responses').select('*').eq('venture_id', id).then(ok),
+    sb.from('venture_comments').select('*').eq('venture_id', id).order('created_at').then(ok),
+  ]);
+  const myResp = resps.find(r => r.user_id === me.id);
+  const ins = resps.filter(r => r.response === 'in');
+  const editing = tab === 'edit' && mine;
+  app.innerHTML = `<p><a href="#ventures" class="muted">← Ventures</a></p>
+  <div class="card">
+    <div class="row"><h1 class="grow" style="margin:0">${esc(v.title)}</h1>${vStagePill(v.stage)}</div>
+    <p class="muted" style="margin:6px 0 0">${v.stage === 'idea' ? 'Idea' : 'Proposed'} by ${name(v.created_by)}${v.decide_by ? ` · decide by <b>${fmtD(v.decide_by)}</b>` : ''}</p>
+    ${v.summary ? `<div class="notes" style="margin-top:12px">${esc(v.summary)}</div>` : ''}
+    ${mine && !editing ? `<div class="row" style="margin-top:14px">
+      ${v.stage === 'idea' ? `<a class="btn small" href="#venture/${id}/edit">Write it up as a proposal</a>` : ''}
+      ${v.stage === 'proposal' ? `<a class="btn small ghost" href="#venture/${id}/edit">Edit proposal</a><button class="btn small ghost" data-stage="idea">Back to idea</button><button class="btn small ghost" data-stage="declined">Withdraw</button>` : ''}
+      ${v.stage === 'declined' ? `<button class="btn small ghost" data-stage="proposal">Reopen</button>` : ''}
+      <button class="btn small danger" id="vdel">Delete</button></div>` : ''}
+  </div>
+  ${editing ? `<div class="card"><h2>${v.stage === 'idea' ? 'Write it up as a proposal' : 'Edit proposal'}</h2><form id="pf">
+    <label for="f_title">Name</label><input type="text" id="f_title" maxlength="100" value="${esc(v.title)}" required>
+    <label for="f_summary">Summary (one or two lines)</label><textarea id="f_summary" maxlength="1000" style="min-height:60px">${esc(v.summary)}</textarea>
+    ${PROPOSAL_FIELDS.map(([k, l, ph]) => `<label for="f_${k}">${l}</label><textarea id="f_${k}" maxlength="3000" placeholder="${esc(ph)}" style="min-height:70px">${esc(v[k])}</textarea>`).join('')}
+    <label for="f_decide">Decide by (optional)</label><input type="date" id="f_decide" value="${v.decide_by || ''}" style="max-width:200px">
+    <button class="btn" id="pgo">${v.stage === 'idea' ? 'Publish proposal' : 'Save'}</button> <a class="btn ghost" href="#venture/${id}">Cancel</a></form></div>` : ''}
+  ${v.stage !== 'idea' && !editing ? `<div class="card"><h2>The proposal</h2>
+    ${PROPOSAL_FIELDS.filter(([k]) => v[k]).map(([k, l]) => `<h3 style="margin-top:12px">${l}</h3><div class="notes">${esc(v[k])}</div>`).join('') || '<p class="muted">Not written up yet.</p>'}
+  </div>` : ''}
+  ${v.stage === 'proposal' ? `<div class="card"><h2>Your answer</h2>
+    <p class="muted" style="margin-top:0">It launches once at least 2 people are in. People who aren't joining can't block it, but concerns stay on the record.</p>
+    <div class="row">${Object.entries(respLabel).map(([k, l]) => `<button class="btn small ${myResp?.response === k ? '' : 'ghost'}" data-resp="${k}">${l}</button>`).join('')}
+      ${myResp ? '<button class="btn small ghost" id="unresp">Clear my answer</button>' : ''}</div>
+    <input type="text" id="rnote" maxlength="1000" placeholder="Note (optional, shown with your answer)" value="${esc(myResp?.note || '')}" style="margin-top:10px">
+    <table style="margin-top:14px">${Object.entries(respLabel).map(([k, l]) => { const rs = resps.filter(r => r.response === k);
+      return `<tr><td style="white-space:nowrap">${l}</td><td>${rs.length ? rs.map(r => `<b>${name(r.user_id)}</b>${r.note ? `: <span class="muted">${esc(r.note)}</span>` : ''}`).join('<br>') : '<span class="muted">—</span>'}</td></tr>`; }).join('')}
+      <tr><td>No answer yet</td><td class="muted">${people.filter(p => !resps.some(r => r.user_id === p.id)).map(p => esc(p.display_name)).join(', ') || '—'}</td></tr></table>
+    ${ins.length >= 2 && myResp?.response === 'in' ? `<button class="btn" id="launch" style="margin-top:16px">🚀 Launch with ${ins.map(r => name(r.user_id)).join(', ')}</button>` : `<p class="muted" style="margin-bottom:0">${ins.length}/2 in so far.</p>`}
+  </div>` : ''}
+  <div class="card"><h2>Discussion</h2>
+    ${comments.length ? comments.map(c => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${name(c.user_id)}</b> <span class="muted" style="font-size:12px">${new Date(c.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+      ${c.user_id === me.id ? `<a href="#" data-delc="${c.id}" class="muted" style="font-size:12px;margin-left:6px">delete</a>` : ''}<div style="white-space:pre-wrap">${esc(c.body)}</div></div>`).join('') : '<p class="muted" style="margin-top:0">No comments yet.</p>'}
+    <form id="cf" style="margin-top:12px"><textarea id="cb" maxlength="3000" placeholder="Add to the discussion" style="min-height:60px" required></textarea><button class="btn small" id="cgo" style="margin-top:8px">Post</button></form>
+  </div>`;
+  const reload = () => pageVenture(id);
+  const run = (el, fn) => busy(el, async () => { await fn(); await reload(); });
+  $$('[data-stage]').forEach(b => b.onclick = () => run(b, () => rpc('venture_set_stage', { p_id: id, p_stage: b.dataset.stage })));
+  if ($('#vdel')) $('#vdel').onclick = e => {
+    if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = 'Click again to delete'; return; }
+    busy(e.target, async () => { ok(await sb.from('ventures').delete().eq('id', id)); location.hash = 'ventures'; });
+  };
+  if ($('#pf')) $('#pf').onsubmit = e => { e.preventDefault(); busy($('#pgo'), async () => {
+    const upd = { title: $('#f_title').value.trim(), summary: $('#f_summary').value, decide_by: $('#f_decide').value || null };
+    PROPOSAL_FIELDS.forEach(([k]) => upd[k] = $('#f_' + k).value);
+    ok(await sb.from('ventures').update(upd).eq('id', id));
+    if (v.stage === 'idea') await rpc('venture_set_stage', { p_id: id, p_stage: 'proposal' });
+    location.hash = 'venture/' + id;
+  }); };
+  $$('[data-resp]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('venture_responses').upsert({ venture_id: id, user_id: me.id, response: b.dataset.resp, note: $('#rnote').value, updated_at: new Date().toISOString() }))));
+  if ($('#unresp')) $('#unresp').onclick = e => run(e.target, async () => ok(await sb.from('venture_responses').delete().eq('venture_id', id).eq('user_id', me.id)));
+  if ($('#launch')) $('#launch').onclick = e => busy(e.target, async () => { await rpc('venture_launch', { p_id: id }); location.hash = 'venture/' + id + '/charter'; });
+  $$('[data-delc]').forEach(a => a.onclick = ev => { ev.preventDefault(); run(a, async () => ok(await sb.from('venture_comments').delete().eq('id', a.dataset.delc))); });
+  $('#cf').onsubmit = e => { e.preventDefault(); run($('#cgo'), async () => ok(await sb.from('venture_comments').insert({ venture_id: id, user_id: me.id, body: $('#cb').value.trim() }))); };
+}
+
+const V_TABS = [['overview', 'Overview'], ['charter', 'Charter'], ['features', 'Features'], ['tasks', 'Tasks'], ['money', 'Money'], ['decisions', 'Decisions'], ['updates', 'Updates'], ['links', 'Links'], ['proposal', 'Proposal']];
+async function ventureWorkspace(v, people, name, tab) {
+  const id = v.id;
+  const [members, charter, agreements] = await Promise.all([
+    sb.from('venture_members').select('*').eq('venture_id', id).then(ok),
+    sb.from('venture_charters').select('*').eq('venture_id', id).maybeSingle().then(ok),
+    sb.from('venture_charter_agreements').select('*').eq('venture_id', id).then(ok),
+  ]);
+  const agreedNow = members.filter(m => agreements.some(a => a.user_id === m.user_id && a.version === charter?.version));
+  const allAgreed = agreedNow.length === members.length;
+  if (!tab || !V_TABS.some(([k]) => k === tab)) tab = v.stage === 'chartering' ? 'charter' : 'overview';
+  const closed = v.stage === 'closed';
+  app.innerHTML = `<p><a href="#ventures" class="muted">← Ventures</a></p>
+    <div class="row" style="margin-bottom:6px"><h1 class="grow" style="margin:0">${esc(v.title)}</h1>${vStagePill(v.stage)} ${v.stage === 'active' ? healthPill(v.health) : ''}</div>
+    <p class="muted" style="margin:0 0 12px">🔒 Private to ${members.map(m => name(m.user_id) + (m.role === 'lead' ? ' (lead)' : '')).join(', ')}</p>
+    ${v.stage === 'chartering' ? `<div class="card" style="border-color:var(--gold)"><b>Agree the charter to go live.</b> ${agreedNow.length}/${members.length} have agreed this version. Everything else works already; the venture shows as active once everyone has agreed.</div>`
+      : v.stage === 'active' && !allAgreed ? `<div class="card" style="border-color:var(--gold)">⚠️ The charter changed and not everyone has agreed the new version (${agreedNow.length}/${members.length}). <a href="#venture/${id}/charter" style="color:var(--gold)">Review it</a>.</div>` : ''}
+    <div class="tabs2">${V_TABS.map(([k, l]) => `<a class="btn small ${k === tab ? '' : 'ghost'}" href="#venture/${id}/${k}">${l}</a>`).join('')}</div>
+    <div id="vt"><div class="empty">Loading…</div></div>`;
+  const el = $('#vt');
+  const reload = () => pageVenture(id, tab);
+  const run = (b, fn) => busy(b, async () => { await fn(); await reload(); });
+  const ownerSel = (idAttr, cur, blank = 'Nobody yet') => `<select id="${idAttr}" class="sel">${`<option value="">${blank}</option>`}${members.map(m => `<option value="${m.user_id}" ${m.user_id === cur ? 'selected' : ''}>${name(m.user_id)}</option>`).join('')}</select>`;
+  const selStyle = 'padding:8px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px';
+
+  if (tab === 'overview') {
+    const [tasks, feats, ups, money] = await Promise.all([
+      sb.from('venture_tasks').select('status,owner_id,due_on,title').eq('venture_id', id).then(ok),
+      sb.from('venture_features').select('status').eq('venture_id', id).then(ok),
+      sb.from('venture_updates').select('*').eq('venture_id', id).order('created_at', { ascending: false }).limit(1).then(ok),
+      sb.from('venture_money').select('kind,amount,member_id').eq('venture_id', id).then(ok),
+    ]);
+    const sum = k => money.filter(x => x.kind === k).reduce((a, x) => a + Number(x.amount), 0);
+    const nonMembers = people.filter(p => !members.some(m => m.user_id === p.id));
+    const myTasks = tasks.filter(t => t.owner_id === me.id && t.status !== 'done');
+    el.innerHTML = `<div class="grid">
+      <div class="card"><h2>Status</h2>${closed ? `<p>Closed: <b>${esc(v.outcome || '')}</b></p>${v.learned ? `<h3>What we learned</h3><div class="notes">${esc(v.learned)}</div>` : ''}` : `<form id="sf">
+        <label for="sh">Health</label><select id="sh" style="${selStyle}">${['on_track', 'at_risk', 'off_track'].map(h => `<option value="${h}" ${v.health === h ? 'selected' : ''}>${h.replace('_', ' ')}</option>`).join('')}</select>
+        <label for="sn">Next milestone</label><input type="text" id="sn" maxlength="500" value="${esc(v.next_milestone)}" placeholder="${esc(v.first_milestone || 'What are we aiming at next?')}">
+        <label for="ss">Where we are</label><textarea id="ss" maxlength="1000" style="min-height:60px">${esc(v.status_note)}</textarea>
+        <button class="btn small" id="sgo" style="margin-top:10px">Save</button></form>`}</div>
+      <div class="card"><h2>At a glance</h2><table>
+        <tr><td>Tasks</td><td>${tasks.filter(t => t.status === 'todo').length} to do · ${tasks.filter(t => t.status === 'doing').length} doing · ${tasks.filter(t => t.status === 'done').length} done</td></tr>
+        <tr><td>Your open tasks</td><td>${myTasks.length ? myTasks.map(t => esc(t.title)).join(', ') : '<span class="muted">none</span>'}</td></tr>
+        <tr><td>Features</td><td>${['idea', 'planned', 'building', 'shipped'].map(s => `${feats.filter(f => f.status === s).length} ${s}`).join(' · ')}</td></tr>
+        <tr><td>Money</td><td>${money.length ? `${money_(sum('contribution'))} put in · ${money_(sum('expense'))} spent · ${money_(sum('revenue'))} earned` : '<span class="muted">nothing recorded</span>'}</td></tr>
+      </table></div>
+      <div class="card"><h2>Latest update</h2>${ups[0] ? `<p class="muted" style="margin-top:0">${name(ups[0].user_id)}, ${new Date(ups[0].created_at).toLocaleDateString('en-GB')}</p>${ups[0].did ? `<div class="notes">${esc(ups[0].did)}</div>` : ''}` : '<p class="muted">No updates yet.</p>'}
+        <a class="btn small ghost" href="#venture/${id}/updates">Post an update</a></div>
+      <div class="card"><h2>Members</h2><table>${members.map(m => `<tr><td>${name(m.user_id)}${m.role === 'lead' ? ' <span class="pill gold">lead</span>' : ''}</td><td>${Number(m.share_pct)}%</td></tr>`).join('')}</table>
+        ${!closed ? `${nonMembers.length ? `<div class="row" style="margin-top:12px"><select id="addm" style="${selStyle}">${nonMembers.map(p => `<option value="${p.id}">${esc(p.display_name)}</option>`).join('')}</select><button class="btn small ghost" id="addgo">Add to venture</button></div>
+          <p class="muted" style="font-size:13px">New members start at 0% and everyone re-agrees the charter.</p>` : ''}
+          <div class="row" style="margin-top:12px"><button class="btn small ghost" id="leave">Leave venture</button><button class="btn small danger" id="closev">Close venture…</button></div>
+          <form id="clf" class="hidden" style="margin-top:12px"><label for="clo">Outcome</label><select id="clo" style="${selStyle}"><option value="shipped">Shipped</option><option value="sold">Sold</option><option value="shelved">Shelved</option><option value="merged">Merged into something else</option></select>
+            <label for="cll">What we learned</label><textarea id="cll" maxlength="3000"></textarea><button class="btn danger" id="clgo">Close it</button></form>` : ''}
+      </div></div>`;
+    if ($('#sf')) $('#sf').onsubmit = e => { e.preventDefault(); run($('#sgo'), async () => ok(await sb.from('ventures').update({ health: $('#sh').value, next_milestone: $('#sn').value, status_note: $('#ss').value }).eq('id', id))); };
+    if ($('#addgo')) $('#addgo').onclick = e => run(e.target, () => rpc('venture_add_member', { p_id: id, p_user: $('#addm').value }));
+    if ($('#leave')) $('#leave').onclick = e => {
+      if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = 'Click again to leave'; return; }
+      busy(e.target, async () => { await rpc('venture_leave', { p_id: id }); location.hash = 'ventures'; });
+    };
+    if ($('#closev')) $('#closev').onclick = () => $('#clf').classList.toggle('hidden');
+    if ($('#clf')) $('#clf').onsubmit = e => { e.preventDefault(); run($('#clgo'), () => rpc('venture_close', { p_id: id, p_outcome: $('#clo').value, p_learned: $('#cll').value })); };
+  }
+
+  else if (tab === 'charter') {
+    const c = charter || {};
+    const rules = [['time_commitment', 'Time each person commits', 'e.g. 4 hours a week, more around launch'], ['money_commitment', 'Money each person puts in', 'e.g. £100 each up front; more only if everyone agrees'],
+      ['decision_rule', 'How decisions get made', ''], ['leaving_rule', 'If someone leaves', ''], ['ip_rule', "Who owns what's made", ''], ['wind_up_rule', 'If we wind it up', '']];
+    const iAgreed = agreements.some(a => a.user_id === me.id && a.version === c.version);
+    el.innerHTML = `<div class="card"><div class="row"><h2 class="grow" style="margin:0">Charter, version ${c.version}</h2>
+        ${!closed ? `<button class="btn small ghost" id="chedit">Edit</button>` : ''}</div>
+      <p class="muted">A plain-English record of what you've agreed with each other. It isn't a legal contract. If real money or a company is involved, get a proper agreement too.</p>
+      <h3>Shares</h3><table>${members.map(m => `<tr><td>${name(m.user_id)}${m.role === 'lead' ? ' (lead)' : ''}</td><td><b>${Number(m.share_pct)}%</b></td></tr>`).join('')}</table>
+      ${rules.map(([k, l]) => `<h3 style="margin-top:14px">${l}</h3><div class="notes">${esc(c[k]) || '<span class="muted">Not filled in yet.</span>'}</div>`).join('')}
+      <h3 style="margin-top:16px">Agreed this version</h3>
+      <p>${members.map(m => agreedNow.some(a => a.user_id === m.user_id) ? `✅ ${name(m.user_id)}` : `⏳ ${name(m.user_id)}`).join(' &nbsp; ')}</p>
+      ${!closed && !iAgreed ? `<button class="btn" id="agree">I agree to version ${c.version}</button>` : !closed ? '<p class="muted">You have agreed this version.</p>' : ''}
+    </div>
+    <div class="card hidden" id="chf"><h2>Edit charter</h2><p class="muted" style="margin-top:0">Saving creates a new version, and everyone has to agree again.</p><form id="cform">
+      <h3>Shares (must add up to 100)</h3>${members.map(m => `<div class="row" style="margin-bottom:6px"><span style="min-width:140px">${name(m.user_id)}</span><input type="number" step="0.01" min="0" max="100" data-share="${m.user_id}" value="${Number(m.share_pct)}" style="width:110px">%</div>`).join('')}
+      ${rules.map(([k, l, ph]) => `<label for="c_${k}">${l}</label><textarea id="c_${k}" maxlength="1000" placeholder="${esc(ph)}" style="min-height:60px">${esc(c[k])}</textarea>`).join('')}
+      <button class="btn" id="cgo2">Save as version ${(c.version || 0) + 1}</button></form></div>`;
+    if ($('#chedit')) $('#chedit').onclick = () => $('#chf').classList.toggle('hidden');
+    if ($('#agree')) $('#agree').onclick = e => run(e.target, async () => { const st = await rpc('venture_agree_charter', { p_id: id }); if (st === 'active' && v.stage === 'chartering') toast('Everyone has agreed: the venture is live!'); });
+    if ($('#cform')) $('#cform').onsubmit = e => { e.preventDefault(); run($('#cgo2'), async () => {
+      const shares = {}; $$('[data-share]').forEach(i => shares[i.dataset.share] = +i.value);
+      const total = Object.values(shares).reduce((a, b) => a + b, 0);
+      if (Math.abs(total - 100) > 0.05) throw new Error(`Shares add up to ${total}%, not 100%`);
+      await rpc('venture_save_charter', { p_id: id, p_time: $('#c_time_commitment').value, p_money: $('#c_money_commitment').value, p_decision: $('#c_decision_rule').value,
+        p_leaving: $('#c_leaving_rule').value, p_ip: $('#c_ip_rule').value, p_windup: $('#c_wind_up_rule').value, p_shares: shares });
+    }); };
+  }
+
+  else if (tab === 'features') {
+    const feats = await sb.from('venture_features').select('*').eq('venture_id', id).order('priority').order('created_at').then(ok);
+    const cols = ['idea', 'planned', 'building', 'shipped'];
+    const pri = { 1: '🔴 High', 2: '🟡 Medium', 3: '⚪ Low' };
+    el.innerHTML = `${!closed ? `<div class="card"><form id="ff"><div class="row"><input type="text" id="ft" class="grow" maxlength="160" placeholder="New feature" required>
+        <select id="fp" style="${selStyle}"><option value="1">🔴 High</option><option value="2" selected>🟡 Medium</option><option value="3">⚪ Low</option></select>${ownerSel('fo', null, 'No owner').replace('class="sel"', `style="${selStyle}"`)}
+        <button class="btn small" id="fgo">Add</button></div><textarea id="fd" maxlength="3000" placeholder="Details (optional)" style="min-height:50px;margin-top:8px"></textarea></form></div>` : ''}
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">${cols.map((s, ci) => `<div class="card" style="padding:12px"><h3 style="text-transform:capitalize">${s} <span class="muted">${feats.filter(f => f.status === s).length}</span></h3>
+        ${feats.filter(f => f.status === s).map(f => `<div style="background:#110e0c;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px">
+          <b>${esc(f.title)}</b><div class="muted" style="font-size:12px">${pri[f.priority]}${f.owner_id ? ' · ' + name(f.owner_id) : ''}</div>
+          ${f.detail ? `<div style="font-size:13px;white-space:pre-wrap;margin-top:4px">${esc(f.detail)}</div>` : ''}
+          ${!closed ? `<div class="row" style="gap:4px;margin-top:6px">${ci > 0 ? `<button class="btn small ghost" data-fmove="${f.id}" data-to="${cols[ci - 1]}">←</button>` : ''}${ci < 3 ? `<button class="btn small ghost" data-fmove="${f.id}" data-to="${cols[ci + 1]}">→</button>` : ''}
+            <button class="btn small ghost" data-fdel="${f.id}" title="Delete">✕</button></div>` : ''}</div>`).join('') || '<p class="muted" style="font-size:13px">—</p>'}</div>`).join('')}</div>`;
+    if ($('#ff')) $('#ff').onsubmit = e => { e.preventDefault(); run($('#fgo'), async () => ok(await sb.from('venture_features').insert({ venture_id: id, title: $('#ft').value.trim(), detail: $('#fd').value, priority: +$('#fp').value, owner_id: $('#fo').value || null, created_by: me.id }))); };
+    $$('[data-fmove]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('venture_features').update({ status: b.dataset.to }).eq('id', b.dataset.fmove))));
+    $$('[data-fdel]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('venture_features').delete().eq('id', b.dataset.fdel))));
+  }
+
+  else if (tab === 'tasks') {
+    const [tasks, feats] = await Promise.all([
+      sb.from('venture_tasks').select('*').eq('venture_id', id).order('due_on', { nullsFirst: false }).order('created_at').then(ok),
+      sb.from('venture_features').select('id,title').eq('venture_id', id).neq('status', 'shipped').then(ok),
+    ]);
+    const cols = [['todo', 'To do'], ['doing', 'Doing'], ['done', 'Done']];
+    el.innerHTML = `${!closed ? `<div class="card"><form id="tf" class="row"><input type="text" id="tt" class="grow" maxlength="200" placeholder="New task" required>
+        ${ownerSel('to', me.id, 'No owner').replace('class="sel"', `style="${selStyle}"`)}<input type="date" id="td" style="width:160px">
+        ${feats.length ? `<select id="tfe" style="${selStyle}"><option value="">No feature</option>${feats.map(f => `<option value="${f.id}">${esc(f.title)}</option>`).join('')}</select>` : ''}
+        <button class="btn small" id="tgo">Add</button></form></div>` : ''}
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">${cols.map(([s, l], ci) => `<div class="card" style="padding:12px"><h3>${l} <span class="muted">${tasks.filter(t => t.status === s).length}</span></h3>
+        ${tasks.filter(t => t.status === s).map(t => { const late = t.due_on && t.status !== 'done' && t.due_on < todayISO();
+          return `<div style="background:#110e0c;border:1px solid ${late ? 'var(--red)' : 'var(--line)'};border-radius:8px;padding:8px 10px;margin-bottom:8px">
+          <b>${esc(t.title)}</b><div class="muted" style="font-size:12px">${t.owner_id ? name(t.owner_id) : 'unassigned'}${t.due_on ? ` · due ${dayMonth(t.due_on)}${late ? ' (late)' : ''}` : ''}</div>
+          ${!closed ? `<div class="row" style="gap:4px;margin-top:6px">${ci > 0 ? `<button class="btn small ghost" data-tmove="${t.id}" data-to="${cols[ci - 1][0]}">←</button>` : ''}${ci < 2 ? `<button class="btn small ghost" data-tmove="${t.id}" data-to="${cols[ci + 1][0]}">→</button>` : ''}
+            ${t.owner_id !== me.id ? `<button class="btn small ghost" data-tmine="${t.id}">Mine</button>` : ''}<button class="btn small ghost" data-tdel="${t.id}" title="Delete">✕</button></div>` : ''}</div>`; }).join('') || '<p class="muted" style="font-size:13px">—</p>'}</div>`).join('')}</div>`;
+    if ($('#tf')) $('#tf').onsubmit = e => { e.preventDefault(); run($('#tgo'), async () => ok(await sb.from('venture_tasks').insert({ venture_id: id, title: $('#tt').value.trim(), owner_id: $('#to').value || null, due_on: $('#td').value || null, feature_id: $('#tfe')?.value || null, created_by: me.id }))); };
+    $$('[data-tmove]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('venture_tasks').update({ status: b.dataset.to }).eq('id', b.dataset.tmove))));
+    $$('[data-tmine]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('venture_tasks').update({ owner_id: me.id }).eq('id', b.dataset.tmine))));
+    $$('[data-tdel]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('venture_tasks').delete().eq('id', b.dataset.tdel))));
+  }
+
+  else if (tab === 'money') {
+    const rows = await sb.from('venture_money').select('*').eq('venture_id', id).order('occurred_on', { ascending: false }).order('created_at', { ascending: false }).then(ok);
+    const sum = (k, f = () => true) => rows.filter(x => x.kind === k && f(x)).reduce((a, x) => a + Number(x.amount), 0);
+    const profit = sum('revenue') - sum('expense');
+    const pot = sum('contribution') - sum('expense', x => !x.member_id) + sum('revenue', x => !x.member_id) - sum('payout');
+    const kinds = { contribution: '💷 Put in', expense: '🧾 Spent', revenue: '💰 Earned', payout: '↩️ Paid out' };
+    el.innerHTML = `<div class="grid">
+      <div class="card"><h2>Totals</h2><table>
+        <tr><td>Put in by members</td><td><b>${money_(sum('contribution'))}</b></td></tr>
+        <tr><td>Spent</td><td>${money_(sum('expense'))}</td></tr><tr><td>Earned</td><td>${money_(sum('revenue'))}</td></tr>
+        <tr><td>Profit so far</td><td><b style="color:${profit < 0 ? '#e07a70' : 'var(--ok)'}">${money_(profit)}</b></td></tr>
+        <tr><td>Paid out to members</td><td>${money_(sum('payout'))}</td></tr>
+        <tr><td>In the venture's pot</td><td><b>${money_(pot)}</b></td></tr></table></div>
+      <div class="card"><h2>Per member</h2><table><tr><th>Name</th><th>Share</th><th>Put in</th><th>Taken out</th><th>Profit share</th></tr>
+        ${members.map(m => { const u = m.user_id;
+          const putIn = sum('contribution', x => x.member_id === u) + sum('expense', x => x.member_id === u);
+          const out = sum('payout', x => x.member_id === u) + sum('revenue', x => x.member_id === u);
+          return `<tr><td>${name(u)}</td><td>${Number(m.share_pct)}%</td><td>${money_(putIn)}</td><td>${money_(out)}</td><td>${money_(profit * Number(m.share_pct) / 100)}</td></tr>`; }).join('')}</table>
+        <p class="muted" style="font-size:13px">"Put in" includes expenses someone paid from their own pocket. "Taken out" includes revenue someone received personally. Settling up isn't automatic yet; Splitwise will handle that later.</p></div></div>
+      ${!closed ? `<div class="card"><h2>Record money</h2><form id="mf"><div class="row">
+        <select id="mk" style="${selStyle}">${Object.entries(kinds).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+        <span>£</span><input type="number" id="ma" min="0.01" step="0.01" required style="width:120px">
+        <select id="mm" style="${selStyle}"><option value="">The venture's pot</option>${members.map(m => `<option value="${m.user_id}" ${m.user_id === me.id ? 'selected' : ''}>${name(m.user_id)}</option>`).join('')}</select>
+        <input type="date" id="md2" value="${todayISO()}" style="width:160px"></div>
+        <input type="text" id="mn" maxlength="500" placeholder="What for, e.g. Domain + first stock order" style="margin-top:8px">
+        <p class="muted" style="font-size:13px;margin:6px 0 0">Who: for "put in" and "paid out", the member involved. For "spent", who paid (or the pot). For "earned", who received it (or the pot).</p>
+        <button class="btn small" id="mgo2" style="margin-top:10px">Record</button></form></div>` : ''}
+      <div class="card"><h2>Ledger</h2>${rows.length ? `<table><tr><th>Date</th><th>What</th><th>Amount</th><th>Who</th><th>Note</th><th></th></tr>${rows.map(x => `<tr><td style="white-space:nowrap">${dayMonth(x.occurred_on)} ${x.occurred_on.slice(0, 4)}</td><td>${kinds[x.kind]}</td><td>${money_(x.amount)}</td>
+        <td>${x.member_id ? name(x.member_id) : '<span class="muted">pot</span>'}</td><td>${esc(x.note)}<br><span class="muted" style="font-size:12px">added by ${name(x.created_by)}</span></td>
+        <td>${!closed && (x.created_by === me.id || me.is_admin) ? `<button class="btn small ghost" data-mdel="${x.id}">✕</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted">Nothing recorded yet.</p>'}</div>`;
+    if ($('#mf')) $('#mf').onsubmit = e => { e.preventDefault(); run($('#mgo2'), async () => {
+      const kind = $('#mk').value, mem = $('#mm').value || null;
+      if (!mem && ['contribution', 'payout'].includes(kind)) throw new Error('Pick which member put the money in or got paid out');
+      ok(await sb.from('venture_money').insert({ venture_id: id, kind, amount: +$('#ma').value, member_id: mem, occurred_on: $('#md2').value, note: $('#mn').value, created_by: me.id }));
+    }); };
+    $$('[data-mdel]').forEach(b => b.onclick = () => {
+      if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = 'Sure?'; return; }
+      run(b, async () => ok(await sb.from('venture_money').delete().eq('id', b.dataset.mdel)));
+    });
+  }
+
+  else if (tab === 'decisions') {
+    const rows = await sb.from('venture_decisions').select('*').eq('venture_id', id).order('decided_on', { ascending: false }).then(ok);
+    el.innerHTML = `${!closed ? `<div class="card"><h2>Record a decision</h2><form id="df"><div class="row"><input type="text" id="dt" class="grow" maxlength="200" placeholder="What was decided" required><input type="date" id="dd" value="${todayISO()}" style="width:160px"></div>
+      <textarea id="dx" maxlength="3000" placeholder="Why, who agreed, anything to remember" style="min-height:60px;margin-top:8px"></textarea><button class="btn small" id="dgo" style="margin-top:8px">Record</button></form></div>` : ''}
+      <div class="card">${rows.length ? rows.map(d => `<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="row"><b class="grow">${esc(d.title)}</b><span class="muted">${fmtD(d.decided_on)}</span>
+        ${!closed ? `<button class="btn small ghost" data-ddel="${d.id}">✕</button>` : ''}</div>${d.detail ? `<div style="white-space:pre-wrap;margin-top:4px">${esc(d.detail)}</div>` : ''}<div class="muted" style="font-size:12px">recorded by ${name(d.created_by)}</div></div>`).join('') : '<p class="muted" style="margin:0">No decisions recorded yet. This is the tab that settles arguments.</p>'}</div>`;
+    if ($('#df')) $('#df').onsubmit = e => { e.preventDefault(); run($('#dgo'), async () => ok(await sb.from('venture_decisions').insert({ venture_id: id, title: $('#dt').value.trim(), decided_on: $('#dd').value, detail: $('#dx').value, created_by: me.id }))); };
+    $$('[data-ddel]').forEach(b => b.onclick = () => {
+      if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = 'Sure?'; return; }
+      run(b, async () => ok(await sb.from('venture_decisions').delete().eq('id', b.dataset.ddel)));
+    });
+  }
+
+  else if (tab === 'updates') {
+    const rows = await sb.from('venture_updates').select('*').eq('venture_id', id).order('created_at', { ascending: false }).limit(50).then(ok);
+    el.innerHTML = `${!closed ? `<div class="card"><h2>Weekly check-in</h2><form id="uf">
+      <label for="ud">What I did</label><textarea id="ud" maxlength="2000" style="min-height:60px"></textarea>
+      <label for="un">What I'm doing next</label><textarea id="un" maxlength="2000" style="min-height:60px"></textarea>
+      <label for="ub">Anything blocking me</label><textarea id="ub" maxlength="2000" style="min-height:50px"></textarea>
+      <button class="btn small" id="ugo" style="margin-top:8px">Post update</button></form></div>` : ''}
+      ${rows.map(u => `<div class="card"><div class="row"><b class="grow">${name(u.user_id)}</b><span class="muted">${new Date(u.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+        ${u.user_id === me.id ? `<button class="btn small ghost" data-udel="${u.id}">✕</button>` : ''}</div>
+        ${u.did ? `<h3 style="margin-top:8px">Did</h3><div class="notes">${esc(u.did)}</div>` : ''}${u.next ? `<h3 style="margin-top:8px">Next</h3><div class="notes">${esc(u.next)}</div>` : ''}
+        ${u.blockers ? `<h3 style="margin-top:8px">Blocked by</h3><div class="notes" style="border-color:var(--red)">${esc(u.blockers)}</div>` : ''}</div>`).join('') || '<div class="card empty">No updates yet.</div>'}`;
+    if ($('#uf')) $('#uf').onsubmit = e => { e.preventDefault(); run($('#ugo'), async () => {
+      if (!$('#ud').value.trim() && !$('#un').value.trim() && !$('#ub').value.trim()) throw new Error('Write something first');
+      ok(await sb.from('venture_updates').insert({ venture_id: id, user_id: me.id, created_by: me.id, did: $('#ud').value, next: $('#un').value, blockers: $('#ub').value }));
+    }); };
+    $$('[data-udel]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('venture_updates').delete().eq('id', b.dataset.udel))));
+  }
+
+  else if (tab === 'links') {
+    const rows = await sb.from('venture_links').select('*').eq('venture_id', id).order('created_at').then(ok);
+    el.innerHTML = `<div class="card">${rows.length ? `<table>${rows.map(l => `<tr><td><a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--gold2)">${esc(l.label)} ↗</a></td><td class="muted" style="font-size:13px;word-break:break-all">${esc(l.url)}</td>
+      <td>${!closed ? `<button class="btn small ghost" data-ldel="${l.id}">✕</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:0">Docs, repos, shop admin, shared drives: keep them all here.</p>'}
+      ${!closed ? `<form id="lf" class="row" style="margin-top:12px"><input type="text" id="ll" maxlength="120" placeholder="Label" required style="max-width:220px"><input type="text" id="lu" class="grow" placeholder="https://…" required><button class="btn small" id="lgo">Add</button></form>` : ''}</div>`;
+    if ($('#lf')) $('#lf').onsubmit = e => { e.preventDefault(); run($('#lgo'), async () => {
+      const url = $('#lu').value.trim(); if (!/^https?:\/\//.test(url)) throw new Error('Link should start with https://');
+      ok(await sb.from('venture_links').insert({ venture_id: id, label: $('#ll').value.trim(), url, created_by: me.id }));
+    }); };
+    $$('[data-ldel]').forEach(b => b.onclick = () => run(b, async () => ok(await sb.from('venture_links').delete().eq('id', b.dataset.ldel))));
+  }
+
+  else if (tab === 'proposal') {
+    el.innerHTML = `<div class="card"><p class="muted" style="margin-top:0">The original proposal by ${name(v.created_by)}, launched ${v.launched_at ? new Date(v.launched_at).toLocaleDateString('en-GB') : ''}.</p>
+      ${v.summary ? `<div class="notes">${esc(v.summary)}</div>` : ''}
+      ${PROPOSAL_FIELDS.filter(([k]) => v[k]).map(([k, l]) => `<h3 style="margin-top:12px">${l}</h3><div class="notes">${esc(v[k])}</div>`).join('')}</div>`;
+  }
+}
+const money_ = n => '£' + Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // ---------- gallery ----------
 let galKind = 'all';

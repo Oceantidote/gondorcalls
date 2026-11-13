@@ -1,14 +1,14 @@
 # gondorcalls.com
 
-Invite-only site for the Warhammer group: Secret Santa, meetups, birthday presents, gallery.
+Invite-only site for the Warhammer group: Secret Santa, meetups, birthday presents, ventures, gallery.
 Planning and decisions live in the site's own vault project, not here.
 
 ## How it fits together
 
 | Piece | Where it runs | Source here |
 |---|---|---|
-| The page (single-file app) | Stored in Supabase table `public.site_files` (path `/`), served by the Worker | `public/index.html` |
-| Worker | Cloudflare Worker `gondorcalls`, custom domains `gondorcalls.com` + `www` (www → apex) | `worker/` |
+| The page (single-file app) | Cloudflare Pages project `gondorcalls`, git-connected: **push to `main` = deploy**, output dir `public`, no build. Custom domain `gondorcalls.com` | `public/index.html` |
+| Worker | Cloudflare Worker `gondorcalls`: owns `www.gondorcalls.com` (301 → apex) and the daily cron | `worker/` |
 | Database, auth, rules | Supabase project `vhlalqnxkasijbspyrrp` ("Warhammer Secret Santa", eu-west-2, free tier) | `supabase/migrations/` |
 | Invite / password-reset links | Supabase Edge Function `invite` (`verify_jwt = false`, the link token is the credential) | `supabase/functions/invite/` |
 | Photos | Supabase Storage bucket `models` (public read, members upload into their own folder) | — |
@@ -24,10 +24,9 @@ Planning and decisions live in the site's own vault project, not here.
 
 ## Deploying
 
-- **Page:** the live copy is the `site_files` row, not this file. After changing `public/index.html`, write it
-  to `public.site_files` (path `/`). The Worker caches for 30 s.
-  Check they match: `select encode(sha256(convert_to(body,'UTF8')),'hex') from public.site_files where path='/';`
-  against `sha256sum public/index.html`.
+- **Page:** push to `main`. Cloudflare Pages publishes it in under a minute. Check the deployment's source
+  commit in the Pages dashboard, not just that the push succeeded. (Until 13 Nov 2026 the page was served from
+  the `public.site_files` table by the Worker; that row is now a stale leftover and nothing reads it for the apex.)
 - **Worker:** `cd worker && npx wrangler deploy`.
 - **Edge function:** `supabase functions deploy invite --no-verify-jwt --project-ref vhlalqnxkasijbspyrrp`.
 - **Schema:** migrations here are the as-applied history from 2026-11-13 (the earlier v1 token-based schema

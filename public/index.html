@@ -143,9 +143,9 @@ function nextBirthday(d) {
 const dayMonth = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : '—';
 
 // ---------- routing ----------
-const routes = { home: pageHome, meetups: pageMeetups, meetup: pageMeetup, birthdays: pageBirthdays, gift: pageGift, ventures: pageVentures, venture: pageVenture, gallery: pageGallery, money: pageMoney, members: pageMembers, santa: pageSanta, profile: pageProfile, admin: pageAdmin };
+const routes = { home: pageHome, meetups: pageMeetups, meetup: pageMeetup, birthdays: pageBirthdays, gift: pageGift, ventures: pageVentures, venture: pageVenture, gallery: pageGallery, money: pageMoney, member: pageMember, games: pageGames, painting: pagePainting, fame: pageFame, members: pageMembers, santa: pageSanta, profile: pageProfile, admin: pageAdmin };
 function drawNav(active) {
-  const items = [['home','Home'],['meetups','Meetups'],['birthdays','Birthdays'],['money','Money'],['ventures','Ventures'],['gallery','Gallery'],['members','Members'],['santa','Secret Santa'],['profile','My profile']];
+  const items = [['home','Home'],['meetups','Meetups'],['games','Games'],['painting','Painting'],['birthdays','Birthdays'],['santa','Secret Santa'],['money','Money'],['gallery','Gallery'],['fame','Hall of fame'],['members','Members'],['ventures','Ventures'],['profile','My profile']];
   if (me?.is_admin) items.push(['admin','Admin']);
   $('#nav').innerHTML = items.map(([k, l]) => `<a href="#${k}" class="${k === active ? 'on' : ''}">${k === 'profile' ? av(me.id, 18) + ' ' : ''}${l}</a>`).join('') + `<a href="#" id="signout">Sign out</a>`;
   $('#signout').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); me = null; location.hash = ''; route(); };
@@ -164,7 +164,7 @@ async function route() {
   await loadPeople();
   const [base, arg, arg2] = h.split('/');
   const page = routes[base] ? base : 'home';
-  $('#hdr').classList.remove('hidden'); drawNav({ meetup: 'meetups', gift: 'birthdays', venture: 'ventures' }[page] || page);
+  $('#hdr').classList.remove('hidden'); drawNav({ meetup: 'meetups', gift: 'birthdays', venture: 'ventures', member: 'members' }[page] || page);
   app.innerHTML = '<div class="empty">Loading…</div>';
   try { await routes[page](arg, arg2); } catch (e) { app.innerHTML = `<div class="card">${esc(e.message)}</div>`; }
 }
@@ -260,10 +260,11 @@ async function pageHome() {
 async function pageMembers() {
   const people = await sb.from('profiles').select('id,display_name,birthday,armies,wishlist').order('display_name').then(ok);
   app.innerHTML = `<h1>Members</h1><div class="grid">${people.map(p => `<div class="card">
-    <div class="row" style="gap:14px;margin-bottom:10px">${av(p.id, 60)}<h2 style="margin:0">${esc(p.display_name)}</h2></div>
+    <a href="#member/${p.id}" class="row" style="gap:14px;margin-bottom:10px;text-decoration:none">${av(p.id, 60)}<h2 style="margin:0">${esc(p.display_name)}</h2></a>
     <p class="muted" style="margin:0">🎂 ${dayMonth(p.birthday)}</p>
     ${p.armies ? `<h3 style="margin-top:12px">Armies</h3><div class="notes">${esc(p.armies)}</div>` : ''}
     ${p.wishlist ? `<h3 style="margin-top:12px">Wishlist</h3><div class="notes">${esc(p.wishlist)}</div>` : ''}
+    <a class="btn small ghost" href="#member/${p.id}">Collection &amp; record</a>
   </div>`).join('')}</div>`;
 }
 
@@ -324,12 +325,14 @@ async function pageSanta() {
       ${past.map(x => `<tr><td>${x.year}</td><td>${esc(who(x.receiver_id).display_name)}</td><td>${esc(x.model_name || '—')}</td></tr>`).join('')}</table></div>` : '';
     if (!g) { el.innerHTML = `<div class="card"><h2>No draw yet</h2><p class="muted">The organiser hasn't run the ${THIS_YEAR} draw. Make sure your <a href="#profile" style="color:var(--gold)">wishlist</a> is up to date so your Santa knows what to paint.</p></div>${pastCard}`; return; }
     const r = who(g.receiver_id);
+    const coll = await sb.from('collection_items').select('*').eq('user_id', g.receiver_id).then(ok);
     el.innerHTML = `<div class="card">
       <span class="pill gold">${g.year}</span>
       <p class="muted" style="margin:10px 0 0">You are painting for…</p>
       <div class="row" style="gap:16px">${av(g.receiver_id, 64)}<div class="big-name">${esc(r.display_name)}</div></div>
       ${r.armies ? `<h3>Their armies</h3><div class="notes">${esc(r.armies)}</div>` : ''}
       ${r.wishlist ? `<h3 style="margin-top:12px">Their wishlist</h3><div class="notes">${esc(r.wishlist)}</div>` : `<p class="muted">They haven't written a wishlist yet.</p>`}
+      <h3 style="margin-top:12px">What they already own</h3>${collectionHtml(coll, 'They haven\'t uploaded any army lists yet.')}
       <hr style="border:0;border-top:1px solid var(--line);margin:20px 0">
       <h3>${g.photo_path ? '✅ Finished. Update it if you like:' : 'Finished it? Log the model'}</h3>
       ${g.photo_path ? `<img class="preview" src="${photoUrl(g.photo_path)}" alt="">` : ''}
@@ -430,7 +433,7 @@ async function pageMeetup(id) {
   app.innerHTML = `
   <p><a href="#meetups" class="muted">← All meetups</a></p>
   <div class="card">
-    <div class="row"><h1 class="grow" style="margin:0">${esc(m.title)}</h1>${statusPill(m.status)}</div>
+    <div class="row"><h1 class="grow" style="margin:0">${esc(m.title)}</h1>${statusPill(m.status)}${waShare(`${m.title}${m.start_date ? ' · ' + fmtRange(m.start_date, m.end_date) : ''}: dates, venue and who's coming on Gondor Calls`, 'meetup/' + m.id)}</div>
     <p style="margin:8px 0 0"><b>${fmtRange(m.start_date, m.end_date)}</b>${chosenVenue ? ` · <b>${chosenVenue.url ? `<a href="${esc(chosenVenue.url)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(chosenVenue.name)}</a>` : esc(chosenVenue.name)}</b>` : ''}</p>
     ${m.description ? `<div class="notes" style="margin-top:12px">${esc(m.description)}</div>` : ''}
     ${m.details ? `<h3 style="margin-top:14px">Address &amp; arrival details</h3><div class="notes">${esc(m.details)}</div>` : ''}
@@ -494,6 +497,8 @@ async function pageMeetup(id) {
   </div>
 
   <div class="card" id="costs"><h2>Costs</h2><p class="muted">Loading…</p></div>
+  ${m.start_date && m.start_date <= todayISO() && m.status !== 'cancelled' ? `<div class="card" id="awards"></div>
+  <div class="card"><div class="row"><h2 class="grow" style="margin:0">Games played here</h2><a class="btn small" href="#games/new/${m.id}">+ Log a game</a></div><p class="muted" style="margin:8px 0 0">Results go into the <a href="#games" style="color:var(--gold)">league</a>.</p></div>` : ''}
 
   <div class="card"><h2>Photos</h2>
     ${photos.length ? `<div class="gallery">${photos.map(p => `<div class="mini" data-src="${photoUrl(p.path)}" data-cap="${esc(p.caption)}">
@@ -503,6 +508,7 @@ async function pageMeetup(id) {
   </div>`;
 
   costsCard($('#costs'), 'meetup', id, people).catch(e => $('#costs').innerHTML = `<p class="muted">${esc(e.message)}</p>`);
+  if ($('#awards')) awardsCard($('#awards'), m).catch(e => $('#awards').innerHTML = `<p class="muted">${esc(e.message)}</p>`);
   const reload = () => pageMeetup(id);
   const run = (el, fn) => busy(el, async () => { await fn(); await reload(); });
   if (manager) {
@@ -603,6 +609,7 @@ async function pageGift(id) {
   const iAmBuyer = g.buyer_id === me.id, isRecipient = g.recipient_id === me.id;
   const ranked = ideas.map(i => ({ ...i, vs: votes.filter(v => v.idea_id === i.id) })).sort((a, b) => b.vs.length - a.vs.length);
   const top = ranked[0];
+  const coll = isRecipient ? [] : await sb.from('collection_items').select('*').eq('user_id', g.recipient_id).then(ok);
 
   app.innerHTML = `<p><a href="#birthdays" class="muted">← Birthdays</a></p>
   <div class="card">
@@ -618,6 +625,7 @@ async function pageGift(id) {
   <div class="card"><h2>What they're into</h2>
     ${r.armies ? `<h3>Armies</h3><div class="notes">${esc(r.armies)}</div>` : ''}
     ${r.wishlist ? `<h3 style="margin-top:12px">Wishlist</h3><div class="notes">${esc(r.wishlist)}</div>` : '<p class="muted">No wishlist on their profile.</p>'}
+    <h3 style="margin-top:14px">What they already own</h3>${collectionHtml(coll, 'They haven\'t uploaded any army lists yet.')}
   </div>
   <div class="card"><h2>The pot</h2>
     <form id="ppf" class="row"><span>£</span><input type="number" id="pp" min="0" step="0.5" value="${Number(g.per_person)}" style="width:100px" ${g.status !== 'planning' ? 'disabled' : ''}>
@@ -628,7 +636,7 @@ async function pageGift(id) {
   ${g.status === 'planning' ? `<div class="card"><h2>Ideas</h2>
     ${ranked.length ? `<table>${ranked.map(i => { const mine = i.vs.some(v => v.user_id === me.id);
       return `<tr><td>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" style="color:var(--gold2)">${esc(i.title)} ↗</a>` : esc(i.title)}
-        ${i.price != null ? `<span class="muted"> · ${money(i.price)}${Number(i.price) > pot ? ' (over the pot)' : ''}</span>` : ''}<br><span class="muted" style="font-size:13px">by ${name(i.added_by)}${i.vs.length ? ' · 👍 ' + i.vs.map(v => who(v.user_id)).join(' ') : ''}</span></td>
+        ${i.price != null ? `<span class="muted"> · ${money(i.price)}${Number(i.price) > pot ? ' (over the pot)' : ''}</span>` : ''}<br><span class="muted" style="font-size:13px">by ${name(i.added_by)}${i.vs.length ? ' · 👍 ' + i.vs.map(v => who(v.user_id)).join(' ') : ''}</span>${(() => { const o = alreadyOwns(coll, i.title); return o.length ? `<br><span style="color:#e0a070;font-size:13px">⚠ ${esc(r.display_name)} already owns ${o.map(x => esc(x.unit_name) + (x.models > 1 ? ' ×' + x.models : '')).join(', ')}</span>` : ''; })()}</td>
         <td style="text-align:right;white-space:nowrap"><button class="btn small ${mine ? '' : 'ghost'}" data-iv="${i.id}" data-on="${mine}">👍 ${i.vs.length}</button>
         ${i.added_by === me.id || me.is_admin ? `<button class="btn small ghost" data-deli="${i.id}">✕</button>` : ''}</td></tr>`; }).join('')}</table>` : '<p class="muted" style="margin-top:0">No ideas yet. Check their wishlist above.</p>'}
     <form id="idf" style="margin-top:12px"><div class="row"><input type="text" id="it" class="grow" maxlength="160" placeholder="Idea, e.g. Combat Patrol: Necrons" required>
@@ -755,7 +763,7 @@ async function ventureProposal(v, people, name, tab) {
   const editing = tab === 'edit' && mine;
   app.innerHTML = `<p><a href="#ventures" class="muted">← Ventures</a></p>
   <div class="card">
-    <div class="row"><h1 class="grow" style="margin:0">${esc(v.title)}</h1>${vStagePill(v.stage)}</div>
+    <div class="row"><h1 class="grow" style="margin:0">${esc(v.title)}</h1>${vStagePill(v.stage)}${v.stage === 'proposal' ? waShare(`New venture proposal: ${v.title}. Are you in?`, 'venture/' + v.id) : ''}</div>
     <p class="muted" style="margin:6px 0 0">${v.stage === 'idea' ? 'Idea' : 'Proposed'} by ${name(v.created_by)}${v.decide_by ? ` · decide by <b>${fmtD(v.decide_by)}</b>` : ''}</p>
     ${v.summary ? `<div class="notes" style="margin-top:12px">${esc(v.summary)}</div>` : ''}
     ${mine && !editing ? `<div class="row" style="margin-top:14px">
@@ -1036,6 +1044,360 @@ async function ventureWorkspace(v, people, name, tab) {
 }
 const money_ = n => '£' + Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// ---------- shared hobby helpers ----------
+const SYSTEMS = { '40k': 'Warhammer 40K', aos: 'Age of Sigmar' };
+const selCss = 'style="width:100%;padding:10px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:8px"';
+const fmtShort = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+// WhatsApp share link. The message carries a link back to the page.
+const waShare = (text, hash) => `<a class="btn small ghost" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(text + '\n' + location.origin + '/#' + hash)}">Share on WhatsApp</a>`;
+
+// Pull units out of a pasted army list (Warhammer app, New Recruit, most text exports).
+// Unit lines look like "Necron Warriors (200 points)" or "Overlord [85 pts]"; models come from the "• 20x Necron Warrior" lines under it.
+function parseArmyList(text) {
+  const lines = String(text).replace(/\r/g, '').split('\n').filter(l => l.trim());
+  const B = '•◦\\-\\*·.';   // bullet characters used by the various exporters
+  const depthOf = l => l.match(new RegExp(`^[\\s${B}]*`))[0].replace(new RegExp(`[${B}]`, 'g'), '  ').length;
+  const isBullet = l => depthOf(l) > 0;
+  const unitRe = /^(?:\d+\s*x\s+)?(.+?)\s*[\(\[]\s*([\d,.]+)\s*(?:pts?|points?)\s*[\)\]]\s*:?.*$/i;
+  const skip = /(strike force|incursion|onslaught|combat patrol|roster|detachment|battle ?size|^total|^\+|^#|^=|regiment|army of renown|spearhead|battle tactic|grand alliance|configuration)/i;
+  const words = s => normName(s).split(' ').filter(w => w.length > 2);
+  const aos = /age of sigmar|grand alliance|regiment|battle tactic|spell lore|prayer lore|manifestation lore/i.test(text);
+  const units = []; let faction = '', stopF = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim(), m = i > 0 && !isBullet(lines[i]) && line.match(unitRe);   // line 1 is the list's own name
+    if (!m) {
+      // the army name: a short plain line before the first unit, not the list title (line 1), not a heading or config line
+      // In Warhammer app exports the army name follows the title: "Space Marines" then, if there is one, the chapter ("Space Wolves").
+      // Stop at the first line with points/detachment in it; the most specific name before that wins.
+      if (i > 0 && !units.length && !stopF) {
+        if (/points|detachment|\(|\[|:|^\+/i.test(line)) stopF = true;
+        else if (!isBullet(lines[i]) && line !== line.toUpperCase() && line.length < 40) faction = line;
+      }
+      continue;
+    }
+    const name = m[1].replace(/\s+/g, ' ').trim(), pts = +m[2].replace(/[,.]/g, '');
+    if (skip.test(name) || pts >= 600 || name.length > 80) { stopF = true; continue; }
+    // the lines belonging to this unit, up to the next non-bullet line
+    const kids = []; for (let j = i + 1; j < lines.length && isBullet(lines[j]); j++) kids.push({ raw: lines[j], d: depthOf(lines[j]) });
+    const top = Math.min(...kids.map(k => k.d), Infinity), uw = words(name);
+    let models = 0;
+    kids.forEach((k, idx) => {
+      if (k.d !== top) return;
+      const c = k.raw.replace(new RegExp(`^[\\s${B}]+`), '').match(/^(\d+)\s*x\s+([^:,]+)/i); if (!c) return;
+      const hasChildren = kids[idx + 1] && kids[idx + 1].d > k.d;
+      const sameName = words(c[2]).some(w => uw.some(u => u.startsWith(w.slice(0, 5)) || w.startsWith(u.slice(0, 5))));
+      if (sameName || hasChildren) models += +c[1];   // a model line, not a piece of wargear
+    });
+    units.push({ name, models: models || 1, points: pts });
+  }
+  return { system: aos ? 'aos' : '40k', faction, units };
+}
+
+// "Does this person already own something like this?" Loose match on unit names, for gift ideas.
+const normName = s => String(s).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\b(the|of|and|with|box|set|kit|squad|unit|warhammer|40k|aos|combat patrol|spearhead)\b/g, ' ').replace(/s\b/g, '').replace(/\s+/g, ' ').trim();
+function alreadyOwns(collection, idea) {
+  const n = normName(idea); if (n.length < 3) return [];
+  return collection.filter(c => { const u = normName(c.unit_name); return u.length >= 3 && (n.includes(u) || u.includes(n)); });
+}
+function collectionHtml(items, emptyText) {
+  if (!items.length) return `<p class="muted" style="margin:0">${emptyText}</p>`;
+  const groups = {};
+  items.forEach(i => { const k = `${SYSTEMS[i.system]}${i.faction ? ' · ' + i.faction : ''}`; (groups[k] = groups[k] || []).push(i); });
+  return Object.entries(groups).sort().map(([k, v]) => `<h3 style="margin:12px 0 6px">${esc(k)} <span class="muted" style="font-weight:400;font-size:13px">${v.reduce((a, i) => a + i.models, 0)} models</span></h3>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${v.sort((a, b) => a.unit_name.localeCompare(b.unit_name)).map(i => `<span class="pill" title="${esc(i.notes)}">${esc(i.unit_name)}${i.models > 1 ? ` ×${i.models}` : ''}</span>`).join('')}</div>`).join('');
+}
+
+// ---------- member page: profile, collection, record ----------
+async function pageMember(id) {
+  if (!/^[0-9a-f-]{36}$/.test(id || '')) { location.hash = 'members'; return; }
+  const [p, items, myGames, paints] = await Promise.all([
+    sb.from('profiles').select('id,display_name,birthday,armies,wishlist').eq('id', id).maybeSingle().then(ok),
+    sb.from('collection_items').select('*').eq('user_id', id).order('unit_name').then(ok),
+    sb.from('game_players').select('result,faction,game_id').eq('user_id', id).then(ok),
+    sb.from('paint_log').select('models,painted_on').eq('user_id', id).then(ok),
+  ]);
+  if (!p) { app.innerHTML = '<div class="card">Member not found.</div>'; return; }
+  const mine = id === me.id;
+  const armies = [...new Map(items.map(i => [i.system + '|' + i.faction.toLowerCase(), { system: i.system, faction: i.faction }])).values()];
+  const rec = r => myGames.filter(g => g.result === r).length;
+  const paintedYear = paints.filter(x => x.painted_on.startsWith(String(THIS_YEAR))).reduce((a, x) => a + x.models, 0);
+  app.innerHTML = `<p><a href="#members" class="muted">← Members</a></p>
+  <div class="card"><div class="row" style="gap:18px">${av(id, 84)}<div class="grow"><h1 style="margin:0">${esc(p.display_name)}</h1>
+    <p class="muted" style="margin:4px 0 0">🎂 ${dayMonth(p.birthday)} · ⚔️ ${myGames.length} games (${rec('win')}W ${rec('draw')}D ${rec('loss')}L) · 🖌️ ${paintedYear} models painted in ${THIS_YEAR}</p></div>
+    ${mine ? '<a class="btn small ghost" href="#profile">Edit profile</a>' : ''}</div>
+    ${p.wishlist ? `<h3 style="margin-top:14px">Wishlist</h3><div class="notes">${esc(p.wishlist)}</div>` : ''}
+    ${p.armies ? `<h3 style="margin-top:12px">Armies (in their words)</h3><div class="notes">${esc(p.armies)}</div>` : ''}</div>
+  <div class="card"><div class="row"><h2 class="grow" style="margin:0">Collection</h2>${mine ? '<button class="btn small" id="cpaste">Upload an army list</button>' : ''}</div>
+    <div id="cform"></div>
+    <div id="clist" style="margin-top:6px">${collectionHtml(items, mine ? 'Nothing yet. Keep one list per army in the Warhammer app with every unit you own, export it, and upload it here.' : 'Nothing uploaded yet.')}</div>
+    ${mine && items.length ? `<details style="margin-top:14px"><summary class="muted" style="cursor:pointer;font-size:13px">Remove an army</summary><div class="row" style="margin-top:8px">${armies.map(a => `<button class="btn small ghost" data-cdrop="${esc(a.system)}|${esc(a.faction)}">✕ ${esc(a.faction)} (${SYSTEMS[a.system]})</button>`).join('')}</div></details>` : ''}
+    <p class="muted" style="font-size:13px;margin-bottom:0">${mine ? 'Bought something? Add it to that army\'s list in the Warhammer app, export again and re-upload: it replaces the old version.' : 'Only as up to date as their last upload. Check before buying.'}</p>
+  </div>`;
+  if (!mine) return;
+  const reload = () => pageMember(id);
+  $$('[data-cdrop]').forEach(b => b.onclick = () => { const [sys, fac] = b.dataset.cdrop.split('|');
+    if (confirm(`Remove all your ${fac} units?`)) busy(b, async () => { await rpc('collection_drop', { p_system: sys, p_faction: fac }); await reload(); }); });
+  $('#cpaste').onclick = () => {
+    $('#cform').innerHTML = `<div style="margin-top:12px"><label for="ct">Paste the exported list</label>
+      <textarea id="ct" style="min-height:180px;font-family:ui-monospace,monospace;font-size:13px" placeholder="In the Warhammer app: open the army's list → Share/Export → copy as text, then paste here."></textarea>
+      <button class="btn" id="cparse">Read it</button><div id="cprev"></div></div>`;
+    $('#cparse').onclick = () => {
+      const r = parseArmyList($('#ct').value);
+      if (!r.units.length) { $('#cprev').innerHTML = '<p class="muted">Couldn\'t find any units. Unit lines need to look like "Necron Warriors (200 points)".</p>'; return; }
+      // prefer an army name they already have, so the upload replaces it instead of duplicating it
+      const guess = armies.find(a => a.system === r.system && normName(a.faction) === normName(r.faction))?.faction || r.faction;
+      $('#cprev').innerHTML = `<div class="row" style="margin-top:14px"><div style="min-width:150px"><label for="ps">Game</label><select id="ps" ${selCss}>${Object.entries(SYSTEMS).map(([k, l]) => `<option value="${k}" ${k === r.system ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="grow"><label for="pf2">Army</label><input type="text" id="pf2" list="myarmies" maxlength="60" value="${esc(guess)}" placeholder="e.g. Necrons" required>
+        <datalist id="myarmies">${armies.map(a => `<option value="${esc(a.faction)}">`).join('')}</datalist></div></div>
+        <p id="pwarn" style="font-size:13px"></p>
+        <p class="muted" style="font-size:13px">Untick anything that isn't a unit and fix model counts if needed.</p>
+        <table>${r.units.map((u, i) => `<tr><td style="width:30px"><input type="checkbox" data-pu="${i}" checked style="width:18px;height:18px"></td><td><input type="text" data-pn="${i}" value="${esc(u.name)}" style="padding:6px"></td>
+          <td style="width:90px"><input type="number" data-pc="${i}" min="1" max="999" value="${u.models}" style="padding:6px"></td></tr>`).join('')}</table>
+        <button class="btn" id="psave">Save this army</button>`;
+      const warn = () => { const sys = $('#ps').value, f = $('#pf2').value.trim(), have = items.filter(i => i.system === sys && i.faction.toLowerCase() === f.toLowerCase()).length;
+        $('#pwarn').innerHTML = !f ? '<span style="color:#e0a070">Say which army this is.</span>' : have ? `<span style="color:var(--gold)">This replaces your ${have} existing ${esc(f)} unit${have === 1 ? '' : 's'}.</span>` : `<span class="muted">New army: ${esc(f)}.</span>`; };
+      $('#ps').onchange = $('#pf2').oninput = warn; warn();
+      $('#psave').onclick = e => busy(e.target, async () => {
+        const list = r.units.map((u, i) => i).filter(i => $(`[data-pu="${i}"]`).checked).map(i => ({ unit_name: $(`[data-pn="${i}"]`).value.trim(), models: +$(`[data-pc="${i}"]`).value || 1 }));
+        const n = await rpc('collection_replace', { p_system: $('#ps').value, p_faction: $('#pf2').value.trim(), p_items: list }); toast(`${$('#pf2').value.trim()}: ${n} units saved`); await reload();
+      });
+    };
+  };
+}
+
+// ---------- games ----------
+// Elo: everyone starts at 1000, K = 32. Returns ratings plus each game's rating change.
+function computeElo(games, players) {
+  const R = {}, delta = {}, K = 32;
+  games.slice().sort((a, b) => a.played_on.localeCompare(b.played_on) || a.created_at.localeCompare(b.created_at)).forEach(g => {
+    const ps = players.filter(p => p.game_id === g.id); if (ps.length !== 2) return;
+    const [a, b] = ps, ra = R[a.user_id] ?? 1000, rb = R[b.user_id] ?? 1000;
+    const ea = 1 / (1 + 10 ** ((rb - ra) / 400)), sa = a.result === 'win' ? 1 : a.result === 'draw' ? .5 : 0;
+    const d = K * (sa - ea); R[a.user_id] = ra + d; R[b.user_id] = rb - d; delta[g.id] = { [a.user_id]: d, [b.user_id]: -d };
+  });
+  return { R, delta };
+}
+let gamesYear = THIS_YEAR;
+async function pageGames(arg, arg2) {
+  if (arg === 'new' || arg === 'edit') return pageGameForm(arg === 'edit' ? arg2 : null, arg === 'new' ? arg2 : null);
+  const [games, players] = await Promise.all([
+    sb.from('games').select('*').order('played_on', { ascending: false }).order('created_at', { ascending: false }).then(ok),
+    sb.from('game_players').select('*').then(ok),
+  ]);
+  const years = [...new Set([THIS_YEAR, ...games.map(g => +g.played_on.slice(0, 4))])].sort((a, b) => b - a);
+  const inYear = games.filter(g => g.played_on.startsWith(String(gamesYear)));
+  const elo = computeElo(inYear, players), all = computeElo(games, players);
+  const ids = [...new Set(players.filter(p => inYear.some(g => g.id === p.game_id)).map(p => p.user_id))];
+  const rec = (uid, gs) => { const r = players.filter(p => p.user_id === uid && gs.some(g => g.id === p.game_id)); return { w: r.filter(x => x.result === 'win').length, d: r.filter(x => x.result === 'draw').length, l: r.filter(x => x.result === 'loss').length, n: r.length }; };
+  const ladder = ids.map(u => ({ u, r: elo.R[u] ?? 1000, ...rec(u, inYear) })).sort((a, b) => b.r - a.r);
+  const people = Object.keys(PEOPLE).sort((a, b) => (PEOPLE[a].display_name || '').localeCompare(PEOPLE[b].display_name || ''));
+  const h2h = (a, b) => { const gs = games.filter(g => { const ps = players.filter(p => p.game_id === g.id).map(p => p.user_id); return ps.includes(a) && ps.includes(b); });
+    const w = gs.filter(g => players.find(p => p.game_id === g.id && p.user_id === a)?.result === 'win').length, l = gs.filter(g => players.find(p => p.game_id === g.id && p.user_id === b)?.result === 'win').length;
+    return gs.length ? `${w}–${l}${gs.length - w - l ? `–${gs.length - w - l}` : ''}` : '·'; };
+  const fac = {}; players.filter(p => inYear.some(g => g.id === p.game_id) && p.faction).forEach(p => { const k = `${SYSTEMS[inYear.find(g => g.id === p.game_id).system]} · ${p.faction}`; fac[k] = fac[k] || { n: 0, w: 0 }; fac[k].n++; if (p.result === 'win') fac[k].w++; });
+  const name = uid => esc(PEOPLE[uid]?.display_name || '?');
+  app.innerHTML = `<div class="row"><h1 class="grow" style="margin:0">Games</h1><a class="btn small" href="#games/new">+ Log a game</a></div>
+  <div class="tabs2" style="margin-top:14px">${years.map(y => `<button class="btn small ${y === gamesYear ? '' : 'ghost'}" data-gy="${y}">${y}</button>`).join('')}</div>
+  <div class="grid">
+    <div class="card"><h2>${gamesYear} league</h2>
+      ${ladder.length ? `<table><tr><th></th><th>Player</th><th>Rating</th><th>W-D-L</th></tr>${ladder.map((x, i) => `<tr><td>${i === 0 ? '👑' : i + 1}</td><td>${who(x.u)}</td><td><b>${Math.round(x.r)}</b></td><td class="muted">${x.w}-${x.d}-${x.l}</td></tr>`).join('')}</table>
+        <p class="muted" style="font-size:13px;margin-bottom:0">Elo rating: everyone starts the year on 1000. Beating someone rated higher earns more. ${gamesYear === THIS_YEAR ? 'Top of the table on 31 December is champion.' : ''}</p>` : '<p class="muted" style="margin:0">No games logged this year yet.</p>'}</div>
+    <div class="card"><h2>All-time ratings</h2>
+      ${Object.keys(all.R).length ? `<table>${Object.entries(all.R).sort((a, b) => b[1] - a[1]).map(([u, r]) => { const x = rec(u, games); return `<tr><td>${who(u)}</td><td><b>${Math.round(r)}</b></td><td class="muted">${x.n} games</td></tr>`; }).join('')}</table>` : '<p class="muted" style="margin:0">Nothing yet.</p>'}</div>
+  </div>
+  ${games.length ? `<div class="card"><h2>Head to head</h2><p class="muted" style="margin-top:0;font-size:13px">All-time record of the row player against the column player (wins–losses–draws).</p><div style="overflow-x:auto"><table>
+    <tr><th></th>${people.map(b => `<th style="text-align:center">${av(b, 24)}</th>`).join('')}</tr>
+    ${people.map(a => `<tr><td>${who(a)}</td>${people.map(b => `<td style="text-align:center" class="${a === b ? 'muted' : ''}">${a === b ? '—' : h2h(a, b)}</td>`).join('')}</tr>`).join('')}</table></div></div>` : ''}
+  ${Object.keys(fac).length ? `<div class="card"><h2>Armies in ${gamesYear}</h2><table><tr><th>Army</th><th>Games</th><th>Win rate</th></tr>${Object.entries(fac).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v.n}</td><td>${Math.round(100 * v.w / v.n)}%</td></tr>`).join('')}</table></div>` : ''}
+  <div class="card"><h2>Results</h2>
+    ${inYear.length ? `<table>${inYear.map(g => { const ps = players.filter(p => p.game_id === g.id).sort((a, b) => (b.result === 'win') - (a.result === 'win'));
+      const [a, b] = ps; if (!a || !b) return '';
+      const line = g.result === 'draw' || a.result === 'draw' ? `${name(a.user_id)} drew with ${name(b.user_id)}` : `${name(a.user_id)} beat ${name(b.user_id)}`;
+      const sc = a.score != null && b.score != null ? ` ${a.score}–${b.score}` : '';
+      const canEdit = g.created_by === me.id || me.is_admin || ps.some(p => p.user_id === me.id);
+      return `<tr><td class="muted" style="white-space:nowrap">${new Date(g.played_on + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
+        <td>${av(a.user_id, 22)} ${av(b.user_id, 22)} <b>${line}${sc}</b><br><span class="muted" style="font-size:13px">${SYSTEMS[g.system]}${g.points ? ` · ${g.points} pts` : ''}${a.faction || b.faction ? ` · ${esc(a.faction || '?')} vs ${esc(b.faction || '?')}` : ''}${g.mission ? ` · ${esc(g.mission)}` : ''}${g.meetup_id ? ` · <a href="#meetup/${g.meetup_id}" style="color:var(--muted)">meetup</a>` : ''}</span>
+        ${g.notes ? `<div class="muted" style="font-size:13px">${esc(g.notes)}</div>` : ''}${g.photo_path ? `<img src="${photoUrl(g.photo_path)}" alt="" loading="lazy" style="max-width:160px;border-radius:8px;margin-top:6px;cursor:zoom-in" data-zoom="${photoUrl(g.photo_path)}">` : ''}</td>
+        <td style="text-align:right;white-space:nowrap">${elo.delta[g.id] ? `<span class="muted" style="font-size:12px">${elo.delta[g.id][a.user_id] >= 0 ? '+' : ''}${Math.round(elo.delta[g.id][a.user_id])}</span><br>` : ''}
+          ${canEdit ? `<a class="btn small ghost" href="#games/edit/${g.id}">Edit</a>` : ''}</td></tr>`; }).join('')}</table>` : '<p class="muted" style="margin:0">No games in this year.</p>'}
+  </div>`;
+  $$('[data-gy]').forEach(b => b.onclick = () => { gamesYear = +b.dataset.gy; pageGames(); });
+  $$('[data-zoom]').forEach(i => i.onclick = () => lightbox(i.dataset.zoom, ''));
+}
+
+async function pageGameForm(editId, meetupId) {
+  let g = null, ps = [];
+  if (editId) {
+    g = await sb.from('games').select('*').eq('id', editId).maybeSingle().then(ok);
+    ps = await sb.from('game_players').select('*').eq('game_id', editId).then(ok);
+    if (!g) { app.innerHTML = '<div class="card">Game not found.</div>'; return; }
+  }
+  const [meetups, cols] = await Promise.all([
+    sb.from('meetups').select('id,title,start_date').order('start_date', { ascending: false, nullsFirst: false }).limit(20).then(ok),
+    sb.from('collection_items').select('user_id,system,faction').then(ok),
+  ]);
+  const people = Object.values(PEOPLE).sort((a, b) => a.display_name.localeCompare(b.display_name));
+  const pA = ps[0] || { user_id: me.id }, pB = ps[1] || {};
+  const winner = ps.find(p => p.result === 'win')?.user_id || (ps.length ? 'draw' : '');
+  const facs = [...new Set(cols.map(c => c.faction).filter(Boolean))].sort();
+  const side = (k, p) => `<div class="grow" style="min-width:220px"><label for="p${k}">Player</label><select id="p${k}" ${selCss}><option value="">Pick…</option>${people.map(x => `<option value="${x.id}" ${x.id === p.user_id ? 'selected' : ''}>${esc(x.display_name)}</option>`).join('')}</select>
+    <label for="f${k}">Army</label><input type="text" id="f${k}" list="facs" maxlength="60" value="${esc(p.faction || '')}" placeholder="e.g. Necrons">
+    <label for="s${k}">Score (optional)</label><input type="number" id="s${k}" min="0" max="999" value="${p.score ?? ''}"></div>`;
+  app.innerHTML = `<p><a href="#games" class="muted">← Games</a></p><div class="card" style="max-width:640px"><h1>${g ? 'Edit game' : 'Log a game'}</h1>
+    <form id="gf2"><datalist id="facs">${facs.map(f => `<option value="${esc(f)}">`).join('')}</datalist>
+      <div class="row"><div style="min-width:170px"><label for="gs">Game</label><select id="gs" ${selCss}>${Object.entries(SYSTEMS).map(([k, l]) => `<option value="${k}" ${k === (g?.system || '40k') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div style="min-width:120px"><label for="gp">Points</label><input type="number" id="gp" min="0" max="10000" step="50" value="${g?.points ?? 2000}"></div>
+        <div style="min-width:150px"><label for="gd">Date</label><input type="date" id="gd" value="${g?.played_on || todayISO()}"></div></div>
+      <div class="row" style="align-items:flex-start">${side('a', pA)}${side('b', pB)}</div>
+      <label for="gw">Result</label><select id="gw" ${selCss}></select>
+      <label for="gm">Mission (optional)</label><input type="text" id="gm" maxlength="120" value="${esc(g?.mission || '')}" placeholder="e.g. Take and Hold">
+      <label for="gme">At a meetup? (optional)</label><select id="gme" ${selCss}><option value="">No</option>${meetups.map(m => `<option value="${m.id}" ${m.id === (g?.meetup_id || meetupId) ? 'selected' : ''}>${esc(m.title)}</option>`).join('')}</select>
+      <label for="gn">Notes (optional)</label><textarea id="gn" maxlength="1000" style="min-height:60px" placeholder="The moment it all went wrong…">${esc(g?.notes || '')}</textarea>
+      <label for="gph">Photo (optional)</label><input type="file" id="gph" accept="image/*">
+      <button class="btn" id="ggo2">${g ? 'Save' : 'Log game'}</button> ${g ? '<button type="button" class="btn danger" id="gdel">Delete game</button>' : ''}
+    </form></div>`;
+  const syncW = () => { const a = $('#pa').value, b = $('#pb').value, cur = $('#gw').value || winner;
+    $('#gw').innerHTML = `<option value="">Pick…</option>${a ? `<option value="${a}">${esc(PEOPLE[a]?.display_name)} won</option>` : ''}${b ? `<option value="${b}">${esc(PEOPLE[b]?.display_name)} won</option>` : ''}<option value="draw">Draw</option>`;
+    if ([a, b, 'draw'].includes(cur)) $('#gw').value = cur; };
+  $('#pa').onchange = $('#pb').onchange = syncW; syncW();
+  $('#gf2').onsubmit = e => { e.preventDefault(); busy($('#ggo2'), async () => {
+    const a = $('#pa').value, b = $('#pb').value, w = $('#gw').value;
+    if (!a || !b || a === b) throw new Error('Pick two different players');
+    if (!w) throw new Error('Who won?');
+    const f = $('#gph').files[0], path = f ? await uploadPhoto(f, 'games', $('#gd').value.slice(0, 4)) : null;
+    await rpc('game_save', { p_id: g?.id || null, p_played_on: $('#gd').value || todayISO(), p_system: $('#gs').value, p_points: $('#gp').value === '' ? null : +$('#gp').value,
+      p_mission: $('#gm').value.trim(), p_players: [{ user_id: a, faction: $('#fa').value.trim(), score: $('#sa').value }, { user_id: b, faction: $('#fb').value.trim(), score: $('#sb').value }],
+      p_winner: w === 'draw' ? null : w, p_meetup: $('#gme').value || null, p_notes: $('#gn').value.trim(), p_photo: path });
+    toast(g ? 'Saved' : 'Logged'); gamesYear = +$('#gd').value.slice(0, 4) || THIS_YEAR; location.hash = 'games';
+  }); };
+  if ($('#gdel')) $('#gdel').onclick = e => { if (confirm('Delete this game? Ratings are recalculated without it.')) busy(e.target, async () => { await rpc('game_delete', { p_id: g.id }); location.hash = 'games'; }); };
+}
+
+// ---------- painting ----------
+async function pagePainting() {
+  const month = todayISO().slice(0, 7) + '-01';
+  const [log, pledges] = await Promise.all([
+    sb.from('paint_log').select('*').order('painted_on', { ascending: false }).order('created_at', { ascending: false }).limit(300).then(ok),
+    sb.from('paint_pledges').select('*').eq('month', month).then(ok),
+  ]);
+  const yr = log.filter(x => x.painted_on.startsWith(String(THIS_YEAR))), mo = log.filter(x => x.painted_on.startsWith(month.slice(0, 7)));
+  const tally = rows => { const t = {}; rows.forEach(x => t[x.user_id] = (t[x.user_id] || 0) + x.models); return t; };
+  const ty = tally(yr), tm = tally(mo), myPledge = pledges.find(p => p.user_id === me.id);
+  const monthName = new Date(month + 'T00:00:00').toLocaleDateString('en-GB', { month: 'long' });
+  const daysLeft = new Date(new Date(month).getFullYear(), new Date(month).getMonth() + 1, 0).getDate() - new Date().getDate();
+  app.innerHTML = `<div class="row"><h1 class="grow" style="margin:0">Painting</h1></div>
+  <div class="grid" style="margin-top:14px">
+    <div class="card"><h2>Log something painted</h2><form id="plf">
+      <label for="plt">What?</label><input type="text" id="plt" maxlength="120" required placeholder="e.g. 10 Necron Warriors, or Doomstalker">
+      <div class="row"><div style="width:110px"><label for="pln">Models</label><input type="number" id="pln" min="1" max="500" value="1" required></div>
+        <div class="grow"><label for="plfac">Army (optional)</label><input type="text" id="plfac" maxlength="60"></div></div>
+      <div class="row"><div><label for="pld">Finished on</label><input type="date" id="pld" value="${todayISO()}"></div></div>
+      <label for="plp">Photo (optional, goes in the gallery)</label><input type="file" id="plp" accept="image/*">
+      <button class="btn" id="plgo">Log it</button></form></div>
+    <div class="card"><h2>${monthName} pledges</h2>
+      <p class="muted" style="margin-top:0;font-size:13px">Promise a number of models this month. ${daysLeft} day${daysLeft === 1 ? '' : 's'} left.</p>
+      ${pledges.length ? `<table>${pledges.sort((a, b) => (tm[b.user_id] || 0) / b.target - (tm[a.user_id] || 0) / a.target).map(p => { const done = tm[p.user_id] || 0, pct = Math.min(100, Math.round(100 * done / p.target));
+        return `<tr><td style="width:40%">${who(p.user_id)}</td><td><div style="background:#110e0c;border-radius:6px;height:12px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${done >= p.target ? 'var(--ok)' : 'var(--gold)'}"></div></div></td><td style="text-align:right;white-space:nowrap">${done}/${p.target}${done >= p.target ? ' ✅' : ''}</td></tr>`; }).join('')}</table>` : '<p class="muted">Nobody has pledged yet.</p>'}
+      <form id="ppf2" class="row" style="margin-top:10px"><span>I'll paint</span><input type="number" id="ppn" min="1" max="500" value="${myPledge?.target || ''}" style="width:90px" required><span>models in ${monthName}</span><button class="btn small" id="ppgo2">${myPledge ? 'Update' : 'Pledge'}</button>
+        ${myPledge ? '<button type="button" class="btn small ghost" id="ppdel">Withdraw</button>' : ''}</form></div>
+    <div class="card"><h2>${THIS_YEAR} so far</h2>
+      ${Object.keys(ty).length ? `<table>${Object.entries(ty).sort((a, b) => b[1] - a[1]).map(([u, n], i) => `<tr><td>${i === 0 ? '🏆' : i + 1}</td><td>${who(u)}</td><td style="text-align:right"><b>${n}</b> models</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Nothing painted this year yet.</p>'}</div>
+  </div>
+  <div class="card"><h2>Recently finished</h2>
+    ${log.length ? `<div class="gallery">${log.slice(0, 60).map(x => `<div class="mini" ${x.photo_path ? `data-src="${photoUrl(x.photo_path)}"` : 'style="cursor:default"'}>
+      ${x.photo_path ? `<img loading="lazy" src="${photoUrl(x.photo_path)}" alt="${esc(x.title)}">` : `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:42px;background:#0c0a09">🖌️</div>`}
+      <div><b>${esc(x.title)}</b><span class="muted">${who(x.user_id)} · ${x.models} model${x.models === 1 ? '' : 's'} · ${new Date(x.painted_on + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+      ${x.user_id === me.id ? ` · <a href="#" data-pldel="${x.id}" style="color:var(--muted)">remove</a>` : ''}</div></div>`).join('')}</div>` : '<p class="muted" style="margin:0">Nothing logged yet.</p>'}
+  </div>`;
+  const reload = () => pagePainting();
+  $('#plf').onsubmit = e => { e.preventDefault(); busy($('#plgo'), async () => {
+    const f = $('#plp').files[0], d = $('#pld').value || todayISO(), path = f ? await uploadPhoto(f, 'paint', d.slice(0, 4)) : null;
+    ok(await sb.from('paint_log').insert({ user_id: me.id, title: $('#plt').value.trim(), models: +$('#pln').value, faction: $('#plfac').value.trim(), painted_on: d, photo_path: path }));
+    toast('Logged. Nice work'); await reload();
+  }); };
+  $('#ppf2').onsubmit = e => { e.preventDefault(); busy($('#ppgo2'), async () => { ok(await sb.from('paint_pledges').upsert({ user_id: me.id, month, target: +$('#ppn').value })); await reload(); }); };
+  if ($('#ppdel')) $('#ppdel').onclick = e => busy(e.target, async () => { ok(await sb.from('paint_pledges').delete().eq('user_id', me.id).eq('month', month)); await reload(); });
+  $$('[data-pldel]').forEach(a => a.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); if (confirm('Remove this entry?')) busy(a, async () => { ok(await sb.from('paint_log').delete().eq('id', a.dataset.pldel)); await reload(); }); });
+  $$('.mini[data-src]').forEach(el => el.onclick = ev => { if (ev.target.closest('a')) return; lightbox(el.dataset.src, ''); });
+}
+
+// ---------- hall of fame ----------
+const AWARDS = { mvp: '🏅 Man of the match', lucky: '🍀 Blessed dice', cursed: '💀 Cursed dice', heretic: '📜 Most heretical rules call', legend: '🍺 Last one standing' };
+function awardWinners(votes) {   // per award: the person (or people) with the most votes
+  const out = {};
+  Object.keys(AWARDS).forEach(k => { const c = {}; votes.filter(v => v.award === k).forEach(v => c[v.nominee] = (c[v.nominee] || 0) + 1);
+    const top = Math.max(0, ...Object.values(c)); if (top) out[k] = { who: Object.keys(c).filter(u => c[u] === top), n: top }; });
+  return out;
+}
+// Awards voting on a meetup page (once it has started).
+async function awardsCard(el, m) {
+  const votes = await sb.from('meetup_awards').select('*').eq('meetup_id', m.id).then(ok);
+  const going = (await sb.from('meetup_rsvps').select('user_id').eq('meetup_id', m.id).eq('status', 'going').then(ok)).map(r => r.user_id);
+  const pool = (going.length ? going : Object.keys(PEOPLE)).filter(u => u !== me.id), wins = awardWinners(votes);
+  el.innerHTML = `<h2>Awards</h2><p class="muted" style="margin-top:0;font-size:13px">One vote each per award. You can't vote for yourself.</p>
+    <table>${Object.entries(AWARDS).map(([k, l]) => { const mine = votes.find(v => v.award === k && v.voter === me.id)?.nominee;
+      return `<tr><td>${l}</td><td>${wins[k] ? wins[k].who.map(u => who(u)).join(' ') + ` <span class="muted" style="font-size:12px">(${wins[k].n})</span>` : '<span class="muted">—</span>'}</td>
+        <td style="width:150px"><select data-aw="${k}" style="padding:6px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:6px;width:100%"><option value="">My vote…</option>${pool.map(u => `<option value="${u}" ${u === mine ? 'selected' : ''}>${esc(PEOPLE[u]?.display_name)}</option>`).join('')}</select></td></tr>`; }).join('')}</table>`;
+  $$('[data-aw]', el).forEach(s => s.onchange = () => busy(s, async () => {
+    if (!s.value) ok(await sb.from('meetup_awards').delete().eq('meetup_id', m.id).eq('award', s.dataset.aw).eq('voter', me.id));
+    else ok(await sb.from('meetup_awards').upsert({ meetup_id: m.id, award: s.dataset.aw, voter: me.id, nominee: s.value }));
+    await awardsCard(el, m);
+  }));
+}
+
+async function pageFame() {
+  const [quotes, laughs, meetups, votes, draws, games, players, vdir] = await Promise.all([
+    sb.from('quotes').select('*').order('created_at', { ascending: false }).then(ok),
+    sb.from('quote_laughs').select('*').then(ok),
+    sb.from('meetups').select('id,title,start_date,end_date,status').order('start_date', { ascending: false }).then(ok),
+    sb.from('meetup_awards').select('*').then(ok),
+    sb.from('ss_draws').select('year').then(ok),
+    sb.from('games').select('id,played_on,created_at').then(ok),
+    sb.from('game_players').select('*').then(ok),
+    rpc('ventures_directory').catch(() => []),
+  ]);
+  const past = meetups.filter(m => m.start_date && m.start_date <= todayISO() && m.status !== 'cancelled');
+  // timeline: meetups, Secret Santa years, league champions, ventures launched
+  const ev = [];
+  past.forEach(m => { const w = awardWinners(votes.filter(v => v.meetup_id === m.id));
+    ev.push({ d: m.start_date, t: `🎲 <a href="#meetup/${m.id}" style="color:var(--gold)">${esc(m.title)}</a>`, s: Object.entries(w).map(([k, x]) => `${AWARDS[k].split(' ')[0]} ${x.who.map(u => esc(PEOPLE[u]?.display_name || '?')).join(' & ')}`).join(' · ') }); });
+  draws.forEach(d => ev.push({ d: `${d.year}-12-25`, t: `🎅 Secret Santa ${d.year}`, s: '' }));
+  [...new Set(games.map(g => +g.played_on.slice(0, 4)))].filter(y => y < THIS_YEAR).forEach(y => {
+    const e = computeElo(games.filter(g => g.played_on.startsWith(String(y))), players), top = Object.entries(e.R).sort((a, b) => b[1] - a[1])[0];
+    if (top) ev.push({ d: `${y}-12-31`, t: `👑 ${esc(PEOPLE[top[0]]?.display_name || '?')} is ${y} champion`, s: `${Math.round(top[1])} rating` }); });
+  vdir.filter(v => ['chartering', 'active', 'closed'].includes(v.stage)).forEach(v => ev.push({ d: v.created_at.slice(0, 10), t: `🚀 <a href="#venture/${v.id}" style="color:var(--gold)">${esc(v.title)}</a>`, s: 'venture launched' }));
+  ev.sort((a, b) => b.d.localeCompare(a.d));
+  const lc = id => laughs.filter(l => l.quote_id === id);
+  const ranked = quotes.slice().sort((a, b) => lc(b.id).length - lc(a.id).length || b.created_at.localeCompare(a.created_at));
+  app.innerHTML = `<h1>Hall of fame</h1>
+  <div class="card"><h2>Quotes</h2>
+    <details><summary class="btn small" style="list-style:none">+ Add a quote</summary><form id="qf" style="margin-top:8px">
+      <label for="qq">What was said</label><textarea id="qq" maxlength="500" required style="min-height:60px" placeholder="&quot;It's fine, they're only Grots.&quot;"></textarea>
+      <div class="row"><div class="grow"><label for="qw">Who said it</label><select id="qw" ${selCss}><option value="">Someone…</option>${Object.values(PEOPLE).sort((a, b) => a.display_name.localeCompare(b.display_name)).map(p => `<option value="${p.id}">${esc(p.display_name)}</option>`).join('')}</select></div>
+        <div class="grow"><label for="qm">Where (optional)</label><select id="qm" ${selCss}><option value="">—</option>${past.map(m => `<option value="${m.id}">${esc(m.title)}</option>`).join('')}</select></div></div>
+      <label for="qc">Context (optional)</label><input type="text" id="qc" maxlength="200" placeholder="Turn 2, right before the Grots ate his Warlord">
+      <button class="btn" id="qgo">Add quote</button></form></details>
+    ${ranked.length ? `<div style="margin-top:14px">${ranked.map(q => { const ls = lc(q.id), mine = ls.some(l => l.user_id === me.id), m = meetups.find(x => x.id === q.meetup_id);
+      return `<div style="border-left:3px solid var(--gold);padding:8px 14px;margin:10px 0;background:#110e0c;border-radius:6px">
+        <div style="font-size:17px;font-style:italic">“${esc(q.quote)}”</div>
+        <div class="row" style="margin-top:6px;gap:8px"><span class="grow muted" style="font-size:13px">${q.said_by ? '— ' + who(q.said_by) : '— someone'}${q.context ? ` · ${esc(q.context)}` : ''}${m ? ` · ${esc(m.title)}` : ''}</span>
+          <button class="btn small ${mine ? '' : 'ghost'}" data-ql="${q.id}" data-on="${mine}">😂 ${ls.length}</button>
+          ${waShare(`“${q.quote}”${q.said_by ? ' — ' + (PEOPLE[q.said_by]?.display_name || '') : ''}`, 'fame')}
+          ${q.added_by === me.id || me.is_admin ? `<button class="btn small ghost" data-qdel="${q.id}">✕</button>` : ''}</div></div>`; }).join('')}</div>` : '<p class="muted">No quotes yet. Someone always says something.</p>'}
+  </div>
+  <div class="card"><h2>Timeline</h2>
+    ${ev.length ? `<table>${ev.map(e => `<tr><td class="muted" style="white-space:nowrap;width:110px">${fmtShort(e.d)}</td><td>${e.t}${e.s ? `<br><span class="muted" style="font-size:13px">${e.s}</span>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">History starts with your first meetup.</p>'}
+  </div>`;
+  const reload = () => pageFame();
+  $('#qf').onsubmit = e => { e.preventDefault(); busy($('#qgo'), async () => {
+    ok(await sb.from('quotes').insert({ quote: $('#qq').value.trim(), said_by: $('#qw').value || null, meetup_id: $('#qm').value || null, context: $('#qc').value.trim(), added_by: me.id }));
+    await reload(); }); };
+  $$('[data-ql]').forEach(b => b.onclick = () => busy(b, async () => { ok(b.dataset.on === 'true'
+    ? await sb.from('quote_laughs').delete().eq('quote_id', b.dataset.ql).eq('user_id', me.id)
+    : await sb.from('quote_laughs').insert({ quote_id: b.dataset.ql, user_id: me.id })); await reload(); }));
+  $$('[data-qdel]').forEach(b => b.onclick = () => { if (confirm('Delete this quote?')) busy(b, async () => { ok(await sb.from('quotes').delete().eq('id', b.dataset.qdel)); await reload(); }); });
+}
+
 // ---------- money (built-in expense sharing) ----------
 // Settle the whole group in as few transfers as possible: biggest debtor pays biggest creditor, repeat.
 function simplifyDebts(pairs) {
@@ -1242,7 +1604,7 @@ async function costsCard(el, kind, id, people) {
 let galKind = 'all';
 async function pageGallery() {
   const rows = await rpc('gallery_all');
-  const kinds = [['all', 'Everything'], ['santa', '🎅 Secret Santa'], ['meetup', '🎲 Meetups'], ['gift', '🎁 Birthdays']];
+  const kinds = [['all', 'Everything'], ['santa', '🎅 Secret Santa'], ['meetup', '🎲 Meetups'], ['gift', '🎁 Birthdays'], ['paint', '🖌️ Painting'], ['game', '⚔️ Games']];
   const shown = rows.filter(r => galKind === 'all' || r.kind === galKind);
   const years = [...new Set(shown.map(r => r.year))].sort((a, b) => b - a);
   app.innerHTML = `<h1>Gallery</h1>
@@ -1250,7 +1612,7 @@ async function pageGallery() {
     ${!shown.length ? `<div class="card empty">Nothing here yet. Photos appear when Secret Santa years are revealed, meetup photos are uploaded, and birthday presents are handed over.</div>` :
       years.map(y => `<div class="year-h">${y}</div><div class="gallery">${shown.filter(r => r.year === y).map((r, i) => `
         <div class="mini" data-i="${rows.indexOf(r)}"><img loading="lazy" src="${photoUrl(r.photo_path)}" alt="${esc(r.title)}">
-        <div><b>${esc(r.title)}</b><span class="muted">${{ santa: '🎅', meetup: '🎲', gift: '🎁' }[r.kind]} ${esc(r.subtitle)}</span></div></div>`).join('')}</div>`).join('')}`;
+        <div><b>${esc(r.title)}</b><span class="muted">${{ santa: '🎅', meetup: '🎲', gift: '🎁', paint: '🖌️', game: '⚔️' }[r.kind]} ${esc(r.subtitle)}</span></div></div>`).join('')}</div>`).join('')}`;
   $$('[data-gk]').forEach(b => b.onclick = () => { galKind = b.dataset.gk; pageGallery(); });
   $$('.mini[data-i]').forEach(el => el.onclick = () => {
     const r = rows[+el.dataset.i];

@@ -13,9 +13,20 @@
   body { margin:0; background: radial-gradient(ellipse at top, #2a1a16 0%, var(--bg) 60%) fixed; color:var(--text); font:15px/1.5 Inter, system-ui, sans-serif; min-height:100vh; }
   header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; max-width:1000px; margin:0 auto; padding:20px 16px 8px; }
   .brand { font-family:Cinzel, serif; font-weight:800; color:var(--gold); font-size:26px; letter-spacing:.06em; text-decoration:none; text-shadow:0 2px 0 #000; }
-  nav { display:flex; gap:6px; flex-wrap:wrap; }
-  nav a { color:var(--muted); text-decoration:none; border:1px solid var(--line); padding:6px 14px; border-radius:999px; font-weight:600; font-size:14px; }
-  nav a.on { background:var(--gold); color:#1a130b; border-color:var(--gold); }
+  nav { display:flex; align-items:center; gap:4px; }
+  .nav-main { display:flex; align-items:center; gap:2px; }
+  nav a, .dd-btn { color:var(--muted); text-decoration:none; font:600 14px Inter, sans-serif; padding:8px 12px; border-bottom:2px solid transparent; background:none; border-top:0; border-left:0; border-right:0; cursor:pointer; }
+  nav a:hover, .dd-btn:hover { color:var(--text); }
+  .nav-main a.on, .dd-btn.on { color:var(--gold); border-bottom-color:var(--gold); }
+  .dd-wrap { position:relative; }
+  .dd-btn { display:inline-flex; align-items:center; gap:6px; }
+  .caret { font-size:11px; opacity:.7; }
+  .dd { display:none; position:absolute; right:0; top:calc(100% + 6px); min-width:190px; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,.55); padding:6px 0; z-index:40; }
+  .dd-wrap.open .dd { display:block; }
+  .dd a { display:block; padding:9px 16px; border:0; color:var(--text); }
+  .dd a:hover { background:rgba(212,166,74,.1); }
+  .dd a.on { color:var(--gold); background:rgba(212,166,74,.12); }
+  .dd-h { padding:6px 16px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
   main { max-width:1000px; margin:0 auto; padding:12px 16px 64px; }
   .card { background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:16px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
   .narrow { max-width:440px; margin:40px auto; }
@@ -57,7 +68,6 @@
   .hidden { display:none !important; }
   select { padding:10px; background:#110e0c; color:var(--text); border:1px solid var(--line); border-radius:8px; font:inherit; color-scheme:dark; max-width:100%; }
   .card { overflow-x:auto; }
-  nav a { display:inline-flex; align-items:center; gap:6px; }
   .burger { display:none; background:transparent; border:1px solid var(--line); border-radius:10px; width:46px; height:42px; padding:0; cursor:pointer; line-height:0; -webkit-appearance:none; appearance:none; }
   .burger svg { display:block; margin:auto; }
   .burger .ico-close, .burger[aria-expanded=true] .ico-open { display:none; }
@@ -68,9 +78,12 @@
     .burger { display:block; }
     nav { display:none; position:absolute; left:0; right:0; top:100%; flex-direction:column; gap:0; background:var(--panel); border-bottom:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.6); max-height:calc(100vh - 70px); overflow-y:auto; padding:6px 0; }
     nav.open { display:flex; }
-    nav a { border:0; border-radius:0; padding:13px 20px; font-size:16px; color:var(--text); }
-    nav a.on { background:rgba(212,166,74,.15); color:var(--gold); }
-    nav a + a { border-top:1px solid rgba(61,51,42,.5); }
+    .nav-main { flex-direction:column; align-items:stretch; gap:0; }
+    .dd-btn { display:none; }
+    .dd, .dd-wrap.open .dd { display:block; position:static; box-shadow:none; border:0; border-radius:0; padding:0; background:none; min-width:0; }
+    .dd-h { padding:14px 20px 4px; border-top:1px solid var(--line); }
+    nav a, .dd a { display:block; border:0; border-radius:0; padding:13px 20px; font-size:16px; color:var(--text); }
+    nav a.on, .dd a.on { background:rgba(212,166,74,.15); color:var(--gold); }
     main { padding:12px 12px 64px; }
     .card { padding:16px; }
     h1 { font-size:24px; }
@@ -175,15 +188,23 @@ const dayMonth = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', 
 // ---------- routing ----------
 const routes = { home: pageHome, meetups: pageMeetups, meetup: pageMeetup, birthdays: pageBirthdays, gift: pageGift, ventures: pageVentures, venture: pageVenture, gallery: pageGallery, money: pageMoney, member: pageMember, games: pageGames, painting: pagePainting, fame: pageFame, members: pageMembers, santa: pageSanta, profile: pageProfile, admin: pageAdmin };
 function drawNav(active) {
-  const items = [['home','Home'],['meetups','Meetups'],['games','Games'],['painting','Painting'],['birthdays','Birthdays'],['santa','Secret Santa'],['money','Money'],['gallery','Gallery'],['fame','Hall of fame'],['members','Members'],['ventures','Ventures'],['profile','My profile']];
-  if (me?.is_admin) items.push(['admin','Admin']);
-  $('#nav').innerHTML = items.map(([k, l]) => `<a href="#${k}" class="${k === active ? 'on' : ''}">${k === 'profile' ? av(me.id, 18) + ' ' : ''}${l}</a>`).join('') + `<a href="#" id="signout">Sign out</a>`;
+  const main = [['home','Home'],['meetups','Meetups'],['games','Games'],['painting','Painting'],['birthdays','Birthdays'],['money','Money']];
+  const more = [['santa','Secret Santa'],['gallery','Gallery'],['fame','Hall of fame'],['members','Members'],['ventures','Ventures']];
+  const mine = [['profile','My profile'], ...(me?.is_admin ? [['admin','Admin']] : [])];
+  const link = ([k, l]) => `<a href="#${k}" class="${k === active ? 'on' : ''}">${l}</a>`;
+  $('#nav').innerHTML = `<div class="nav-main">${main.map(link).join('')}</div>
+    <div class="dd-wrap"><button class="dd-btn${more.some(([k]) => k === active) ? ' on' : ''}" aria-haspopup="true" aria-expanded="false">More <span class="caret">▾</span></button>
+      <div class="dd"><div class="dd-h">More</div>${more.map(link).join('')}</div></div>
+    <div class="dd-wrap dd-right"><button class="dd-btn${mine.some(([k]) => k === active) ? ' on' : ''}" aria-haspopup="true" aria-expanded="false" title="${esc(me.display_name)}">${av(me.id, 28)} <span class="caret">▾</span></button>
+      <div class="dd"><div class="dd-h">${esc(me.display_name)}</div>${mine.map(link).join('')}<a href="#" id="signout">Sign out</a></div></div>`;
+  $$('#nav .dd-btn').forEach(b => b.onclick = e => { e.stopPropagation(); const open = b.getAttribute('aria-expanded') !== 'true'; closeDropdowns(); b.setAttribute('aria-expanded', String(open)); b.parentElement.classList.toggle('open', open); });
   $('#signout').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); me = null; location.hash = ''; route(); };
   setMenu(false);
   document.title = (({ home: '', santa: 'Secret Santa', fame: 'Hall of fame', profile: 'My profile' })[active] ?? (active ? active[0].toUpperCase() + active.slice(1) : '')) + (active && active !== 'home' ? ' · ' : '') + SITE_NAME;
 }
 // Mobile menu
-function setMenu(open) { $('#nav').classList.toggle('open', open); $('#burger').setAttribute('aria-expanded', String(open)); }
+function setMenu(open) { $('#nav').classList.toggle('open', open); $('#burger').setAttribute('aria-expanded', String(open)); if (!open) closeDropdowns(); }
+function closeDropdowns() { $$('#nav .dd-wrap').forEach(w => { w.classList.remove('open'); w.querySelector('.dd-btn').setAttribute('aria-expanded', 'false'); }); }
 $('#burger').onclick = e => { e.stopPropagation(); setMenu(!$('#nav').classList.contains('open')); };
 document.addEventListener('click', e => { if (!e.target.closest('#nav') && !e.target.closest('#burger')) setMenu(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });

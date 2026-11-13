@@ -80,7 +80,7 @@
   .burger svg { display:block; margin:auto; }
   .burger .ico-close, .burger[aria-expanded=true] .ico-open { display:none; }
   .burger[aria-expanded=true] .ico-close { display:block; }
-  @media (max-width: 760px) {
+  @media (max-width: 980px) {
     header { padding:12px 16px 4px; flex-wrap:nowrap; position:sticky; top:0; z-index:30; background:rgba(13,17,23,.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
     .brand { font-size:22px; }
     .burger { display:block; }
@@ -1198,9 +1198,25 @@ function collectionHtml(items, emptyText) {
   if (!items.length) return `<p class="muted" style="margin:0">${emptyText}</p>`;
   const groups = {};
   items.forEach(i => { const k = `${SYSTEMS[i.system]}${i.faction ? ' · ' + i.faction : ''}`; (groups[k] = groups[k] || []).push(i); });
-  return Object.entries(groups).sort().map(([k, v]) => `<h3 style="margin:12px 0 6px">${esc(k)} <span class="muted" style="font-weight:400;font-size:13px">${v.reduce((a, i) => a + i.models, 0)} models</span></h3>
-    <div style="display:flex;flex-wrap:wrap;gap:6px">${v.sort((a, b) => a.unit_name.localeCompare(b.unit_name)).map(i => `<span class="pill" title="${esc(i.notes)}">${esc(i.unit_name)}${i.models > 1 ? ` ×${i.models}` : ''}</span>`).join('')}</div>`).join('');
+  return `<div class="collection">
+    <input type="search" class="csearch" placeholder="Search their units, e.g. chaplain" aria-label="Search collection" style="width:100%;padding:10px 12px;background:var(--input);border:1px solid var(--line);color:var(--text);border-radius:8px;font:inherit;margin-top:6px">
+    <p class="cresult" style="margin:8px 0 0;font-size:14px"></p>
+    ${Object.entries(groups).sort().map(([k, v]) => `<div class="cgroup"><h3 style="margin:12px 0 6px">${esc(k)} <span class="muted" style="font-weight:400;font-size:13px">${v.reduce((a, i) => a + i.models, 0)} models</span></h3>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${v.sort((a, b) => a.unit_name.localeCompare(b.unit_name)).map(i => `<span class="pill cunit" data-n="${esc(i.unit_name.toLowerCase())}" data-label="${esc(i.unit_name)}${i.models > 1 ? ' ×' + i.models : ''}" data-army="${esc(k)}" title="${esc(i.notes)}">${esc(i.unit_name)}${i.models > 1 ? ` ×${i.models}` : ''}</span>`).join('')}</div></div>`).join('')}</div>`;
 }
+// Live filter for any collection on the page.
+document.addEventListener('input', e => {
+  if (!e.target.classList?.contains('csearch')) return;
+  const box = e.target.closest('.collection'), out = box.querySelector('.cresult');
+  const words = e.target.value.toLowerCase().trim().split(/\s+/).filter(Boolean).map(w => w.length > 3 ? w.replace(/(es|s)$/, '') : w);
+  const units = [...box.querySelectorAll('.cunit')];
+  const hits = units.filter(u => words.every(w => u.dataset.n.includes(w)));
+  units.forEach(u => { const on = !words.length || hits.includes(u); u.style.display = on ? '' : 'none'; u.style.borderColor = words.length && on ? 'var(--gold)' : ''; u.style.color = words.length && on ? 'var(--gold)' : ''; });
+  box.querySelectorAll('.cgroup').forEach(g => g.style.display = !words.length || [...g.querySelectorAll('.cunit')].some(u => hits.includes(u)) ? '' : 'none');
+  out.innerHTML = !words.length ? '' : hits.length
+    ? `<span style="color:var(--warn)">⚠ Already owns:</span> ${hits.map(u => `<b>${esc(u.dataset.label)}</b> <span class="muted">(${esc(u.dataset.army)})</span>`).join(', ')}`
+    : `<span style="color:var(--ok)">✓ No “${esc(e.target.value.trim())}” in their uploaded lists.</span> <span class="muted">Probably not owned, but anything they haven't added to a list won't show.</span>`;
+});
 
 // ---------- member page: profile, collection, record ----------
 async function pageMember(id) {

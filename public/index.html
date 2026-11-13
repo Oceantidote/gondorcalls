@@ -55,6 +55,31 @@
   .linkbox { font-family:ui-monospace, monospace; font-size:12px; word-break:break-all; background:#110e0c; padding:10px; border-radius:6px; border:1px dashed var(--gold); }
   .preview { max-width:220px; border-radius:8px; margin-top:10px; display:block; }
   .hidden { display:none !important; }
+  select { padding:10px; background:#110e0c; color:var(--text); border:1px solid var(--line); border-radius:8px; font:inherit; color-scheme:dark; max-width:100%; }
+  .card { overflow-x:auto; }
+  nav a { display:inline-flex; align-items:center; gap:6px; }
+  .burger { display:none; background:transparent; border:1px solid var(--line); border-radius:10px; width:46px; height:42px; padding:10px; cursor:pointer; flex-direction:column; justify-content:space-between; }
+  .burger span { display:block; height:2px; background:var(--gold); border-radius:2px; transition:transform .2s, opacity .2s; }
+  .burger[aria-expanded=true] span:nth-child(1) { transform:translateY(9px) rotate(45deg); }
+  .burger[aria-expanded=true] span:nth-child(2) { opacity:0; }
+  .burger[aria-expanded=true] span:nth-child(3) { transform:translateY(-9px) rotate(-45deg); }
+  @media (max-width: 760px) {
+    header { padding:12px 16px 4px; flex-wrap:nowrap; position:sticky; top:0; z-index:30; background:rgba(20,17,15,.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
+    .brand { font-size:22px; }
+    .burger { display:flex; }
+    nav { display:none; position:absolute; left:0; right:0; top:100%; flex-direction:column; gap:0; background:var(--panel); border-bottom:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.6); max-height:calc(100vh - 70px); overflow-y:auto; padding:6px 0; }
+    nav.open { display:flex; }
+    nav a { border:0; border-radius:0; padding:13px 20px; font-size:16px; color:var(--text); }
+    nav a.on { background:rgba(212,166,74,.15); color:var(--gold); }
+    nav a + a { border-top:1px solid rgba(61,51,42,.5); }
+    main { padding:12px 12px 64px; }
+    .card { padding:16px; }
+    h1 { font-size:24px; }
+    input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], textarea, select { font-size:16px; }
+    .btn.small { padding:10px 14px; min-height:40px; }
+    .grow { min-width:0; flex-basis:100%; }
+    td, th { padding:8px 4px; }
+  }
   a.cardlink { display:block; color:inherit; text-decoration:none; transition:border-color .15s, transform .15s; }
   a.cardlink:hover, a.cardlink:focus-visible { border-color:var(--gold); transform:translateY(-2px); }
   .empty { text-align:center; padding:30px; color:var(--muted); }
@@ -64,6 +89,7 @@
 <body>
 <header id="hdr" class="hidden">
   <a class="brand" href="#home">Gondor Calls</a>
+  <button id="burger" class="burger" aria-label="Menu" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
   <nav id="nav"></nav>
 </header>
 <main id="app"><div class="empty">Loading…</div></main>
@@ -151,7 +177,14 @@ function drawNav(active) {
   if (me?.is_admin) items.push(['admin','Admin']);
   $('#nav').innerHTML = items.map(([k, l]) => `<a href="#${k}" class="${k === active ? 'on' : ''}">${k === 'profile' ? av(me.id, 18) + ' ' : ''}${l}</a>`).join('') + `<a href="#" id="signout">Sign out</a>`;
   $('#signout').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); me = null; location.hash = ''; route(); };
+  setMenu(false);
+  document.title = (({ home: '', santa: 'Secret Santa', fame: 'Hall of fame', profile: 'My profile' })[active] ?? (active ? active[0].toUpperCase() + active.slice(1) : '')) + (active && active !== 'home' ? ' · ' : '') + SITE_NAME;
 }
+// Mobile menu
+function setMenu(open) { $('#nav').classList.toggle('open', open); $('#burger').setAttribute('aria-expanded', String(open)); }
+$('#burger').onclick = e => { e.stopPropagation(); setMenu(!$('#nav').classList.contains('open')); };
+document.addEventListener('click', e => { if (!e.target.closest('#nav') && !e.target.closest('#burger')) setMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
 async function route() {
   const h = location.hash.slice(1);
   const m = h.match(/^(invite|reset)=([0-9a-f-]{36})$/i);
@@ -170,7 +203,13 @@ async function route() {
   app.innerHTML = '<div class="empty">Loading…</div>';
   try { await routes[page](arg, arg2); } catch (e) { app.innerHTML = `<div class="card">${esc(e.message)}</div>`; }
 }
-addEventListener('hashchange', route);
+let lastBase = null;
+addEventListener('hashchange', () => {
+  // a new page opens at the top; re-rendering the same page (e.g. after saving) keeps your place
+  const base = location.hash.slice(1).split('/').slice(0, 2).join('/');
+  if (base !== lastBase) scrollTo(0, 0);
+  lastBase = base; route();
+});
 
 // ---------- auth pages ----------
 function pageLogin() {
@@ -240,6 +279,7 @@ async function pageHome() {
       ${santa ? `<p>${santa.year}: you're painting for <b>${esc(people.find(p => p.id === santa.receiver_id)?.display_name)}</b>. ${santa.photo_path ? '<span class="pill ok">Done</span>' : ''}</p>` : '<p class="muted">No draw yet this year.</p>'}
       <a class="btn small" href="#santa">Open Secret Santa</a>
     </div>
+    <div class="card" id="homechal"><h2>Painting challenge</h2><p class="muted" style="margin:0">Loading…</p></div>
     <div class="card"><h2>Next meetup</h2>
       ${nm ? `<p><b>${esc(nm.title)}</b> ${statusPill(nm.status)}<br><span class="muted">${fmtRange(nm.start_date, nm.end_date)}</span></p><a class="btn small" href="#meetup/${nm.id}">Open</a>`
         : '<p class="muted">Nothing planned.</p><a class="btn small ghost" href="#meetups">Plan one</a>'}
@@ -256,6 +296,17 @@ async function pageHome() {
     </div>
     <div class="card"><h2>The group</h2><p>${people.length} members.</p><a class="btn small ghost" href="#members">See everyone</a></div>
   </div>`;
+  loadChallenges().then(({ chals, entries, cur }) => {
+    const c = chals.find(x => x.month === cur), e = entries.find(x => x.month === cur && x.user_id === me.id);
+    const owed = roundsOwed(chals, entries, cur).filter(o => o.user_id === me.id).length;
+    const left = Math.round((lastDay(cur) - new Date(londonToday() + 'T00:00:00')) / 864e5) + 1;
+    $('#homechal').innerHTML = `<h2>${new Date(cur + 'T00:00:00').toLocaleDateString('en-GB', { month: 'long' })} challenge</h2>
+      ${c?.theme ? `<p style="font-size:18px;margin:0 0 6px"><b>${esc(c.theme)}</b></p>
+        <p style="margin:0">${e?.finished_at ? '<span style="color:var(--ok)">✅ You\'re done.</span>' : e?.opted_out ? '<span class="muted">You\'re sitting this one out.</span>' : `⏳ ${left} day${left === 1 ? '' : 's'} left to upload yours.`}</p>`
+        : `<p style="margin:0">${c?.setter === me.id ? '<b>It\'s your turn to pick the theme.</b>' : `Waiting for ${who(c?.setter)} to pick.`}</p>`}
+      ${owed ? `<p style="margin:8px 0 0;color:#e0a070">🍺 You owe ${owed} round${owed === 1 ? '' : 's'}.</p>` : ''}
+      <a class="btn small${c?.theme && !e?.finished_at ? '' : ' ghost'}" href="#painting">Open painting</a>`;
+  }).catch(() => $('#homechal').remove());
 }
 
 // ---------- members ----------

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Warband</title>
+<title>Gondor Calls</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -61,12 +61,12 @@
 </head>
 <body>
 <header id="hdr" class="hidden">
-  <a class="brand" href="#home">The Warband</a>
+  <a class="brand" href="#home">Gondor Calls</a>
   <nav id="nav"></nav>
 </header>
 <main id="app"><div class="empty">Loading…</div></main>
 <script>
-const SITE_NAME = 'The Warband';
+const SITE_NAME = 'Gondor Calls';
 const sb = supabase.createClient('https://vhlalqnxkasijbspyrrp.supabase.co', 'sb_publishable_g2Oe_3tlYEittwgGjF94AQ_vvhB5wDf');
 const THIS_YEAR = new Date().getFullYear();
 const $ = (s, el = document) => el.querySelector(s);
@@ -182,7 +182,7 @@ async function pageRedeem(kind, token) {
     const r = join ? await invite({ action: 'redeem', token, email: $('#em').value, display_name: $('#nm').value, password: pw })
                    : await invite({ action: 'reset', token, password: pw });
     ok(await sb.auth.signInWithPassword({ email: r.email, password: pw }));
-    toast(join ? 'Welcome to the Warband!' : 'Password updated');
+    toast(join ? 'Welcome to Gondor Calls!' : 'Password updated');
     history.replaceState(null, '', location.pathname + (join ? '#profile' : '#home')); route();
   }); };
 }
@@ -221,7 +221,7 @@ async function pageHome() {
       ${!vAsk.length && !vMine.length ? '<p class="muted">Nothing needs you right now.</p>' : ''}
       <a class="btn small ghost" href="#ventures">Open ventures</a>
     </div>
-    <div class="card"><h2>The Warband</h2><p>${people.length} members.</p><a class="btn small ghost" href="#members">See everyone</a></div>
+    <div class="card"><h2>The group</h2><p>${people.length} members.</p><a class="btn small ghost" href="#members">See everyone</a></div>
   </div>`;
 }
 
@@ -565,7 +565,7 @@ async function pageGift(id) {
   ${g.status === 'given' ? `<div class="card"><h2>The present</h2>
     ${g.photo_path ? `<img src="${photoUrl(g.photo_path)}" alt="" style="max-width:100%;max-height:420px;border-radius:10px;display:block;margin-bottom:12px">` : ''}
     <p style="font-size:18px;margin:0"><b>${g.gift_url ? `<a href="${esc(g.gift_url)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(g.gift_title || 'Present')}</a>` : esc(g.gift_title || 'Present')}</b></p>
-    <p class="muted">From ${contribs.map(c => name(c.user_id)).join(', ') || 'the Warband'}${g.buyer_id ? `. Bought by ${name(g.buyer_id)}` : ''}.</p></div>` : `
+    <p class="muted">From ${contribs.map(c => name(c.user_id)).join(', ') || 'the group'}${g.buyer_id ? `. Bought by ${name(g.buyer_id)}` : ''}.</p></div>` : `
   <div class="card"><h2>What they're into</h2>
     ${r.armies ? `<h3>Armies</h3><div class="notes">${esc(r.armies)}</div>` : ''}
     ${r.wishlist ? `<h3 style="margin-top:12px">Wishlist</h3><div class="notes">${esc(r.wishlist)}</div>` : '<p class="muted">No wishlist on their profile.</p>'}
@@ -711,7 +711,7 @@ async function ventureProposal(v, people, name, tab) {
     <p class="muted" style="margin:6px 0 0">${v.stage === 'idea' ? 'Idea' : 'Proposed'} by ${name(v.created_by)}${v.decide_by ? ` · decide by <b>${fmtD(v.decide_by)}</b>` : ''}</p>
     ${v.summary ? `<div class="notes" style="margin-top:12px">${esc(v.summary)}</div>` : ''}
     ${mine && !editing ? `<div class="row" style="margin-top:14px">
-      ${v.stage === 'idea' ? `<a class="btn small" href="#venture/${id}/edit">Write it up as a proposal</a>` : ''}
+      ${v.stage === 'idea' ? `<a class="btn small" href="#venture/${id}/edit">${PROPOSAL_FIELDS.some(([k]) => v[k]) ? 'Review &amp; publish as a proposal' : 'Write it up as a proposal'}</a>` : ''}
       ${v.stage === 'proposal' ? `<a class="btn small ghost" href="#venture/${id}/edit">Edit proposal</a><button class="btn small ghost" data-stage="idea">Back to idea</button><button class="btn small ghost" data-stage="declined">Withdraw</button>` : ''}
       ${v.stage === 'declined' ? `<button class="btn small ghost" data-stage="proposal">Reopen</button>` : ''}
       <button class="btn small danger" id="vdel">Delete</button></div>` : ''}
@@ -722,7 +722,7 @@ async function ventureProposal(v, people, name, tab) {
     ${PROPOSAL_FIELDS.map(([k, l, ph]) => `<label for="f_${k}">${l}</label><textarea id="f_${k}" maxlength="3000" placeholder="${esc(ph)}" style="min-height:70px">${esc(v[k])}</textarea>`).join('')}
     <label for="f_decide">Decide by (optional)</label><input type="date" id="f_decide" value="${v.decide_by || ''}" style="max-width:200px">
     <button class="btn" id="pgo">${v.stage === 'idea' ? 'Publish proposal' : 'Save'}</button> <a class="btn ghost" href="#venture/${id}">Cancel</a></form></div>` : ''}
-  ${v.stage !== 'idea' && !editing ? `<div class="card"><h2>The proposal</h2>
+  ${!editing && (v.stage !== 'idea' || PROPOSAL_FIELDS.some(([k]) => v[k])) ? `<div class="card"><h2>The proposal${v.stage === 'idea' ? ' <span class="pill">draft</span>' : ''}</h2>
     ${PROPOSAL_FIELDS.filter(([k]) => v[k]).map(([k, l]) => `<h3 style="margin-top:12px">${l}</h3><div class="notes">${esc(v[k])}</div>`).join('') || '<p class="muted">Not written up yet.</p>'}
   </div>` : ''}
   ${v.stage === 'proposal' ? `<div class="card"><h2>Your answer</h2>

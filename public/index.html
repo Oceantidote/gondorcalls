@@ -275,6 +275,8 @@ async function pageProfile() {
     <div class="row" style="gap:18px">${av(me.id, 96)}
       <div><input type="file" id="avf" accept="image/*"><p class="muted" style="font-size:13px;margin:6px 0 0">A square crop from the middle of the picture is used. Your face, your army, your best model: up to you.</p>
       ${PEOPLE[me.id]?.avatar_path ? '<button class="btn small ghost" id="avdel" style="margin-top:10px">Remove picture</button>' : ''}</div></div></div>
+  <div class="card"><div class="row"><div class="grow"><h2 style="margin:0">Army rosters</h2><p class="muted" style="margin:6px 0 0;font-size:13px">Upload an export from the Warhammer app for each army. Re-uploading an army replaces it.</p></div>
+    <a class="btn small" href="#member/${me.id}">Manage my armies</a></div></div>
   <div class="card"><form id="pf">
     <label for="nm">Name</label><input type="text" id="nm" maxlength="40" value="${esc(me.display_name)}" required>
     <label for="bd">Birthday</label><input type="date" id="bd" value="${esc(me.birthday || '')}">
@@ -496,6 +498,7 @@ async function pageMeetup(id) {
     <form id="itf" class="row" style="margin-top:12px"><input type="text" id="itl" class="grow" maxlength="120" placeholder="Add something that needs bringing" required><button class="btn small" id="itgo">Add</button></form>
   </div>
 
+  ${m.status !== 'cancelled' && (!m.end_date || m.end_date >= todayISO()) ? '<div class="card" id="rounds"></div>' : ''}
   <div class="card" id="costs"><h2>Costs</h2><p class="muted">Loading…</p></div>
   ${m.start_date && m.start_date <= todayISO() && m.status !== 'cancelled' ? `<div class="card" id="awards"></div>
   <div class="card"><div class="row"><h2 class="grow" style="margin:0">Games played here</h2><a class="btn small" href="#games/new/${m.id}">+ Log a game</a></div><p class="muted" style="margin:8px 0 0">Results go into the <a href="#games" style="color:var(--gold)">league</a>.</p></div>` : ''}
@@ -508,6 +511,10 @@ async function pageMeetup(id) {
   </div>`;
 
   costsCard($('#costs'), 'meetup', id, people).catch(e => $('#costs').innerHTML = `<p class="muted">${esc(e.message)}</p>`);
+  if ($('#rounds')) loadChallenges().then(({ chals, entries, cur }) => { const o = roundsOwed(chals, entries, cur);
+    if (!o.length) { $('#rounds').remove(); return; }
+    $('#rounds').innerHTML = `<h2>🍺 Rounds owed</h2><p class="muted" style="margin-top:0;font-size:13px">Missed painting challenges. Collect at this meetup.</p>${roundsOwedHtml(o)}`;
+    wireRounds($('#rounds'), () => pageMeetup(id)); }).catch(() => $('#rounds').remove());
   if ($('#awards')) awardsCard($('#awards'), m).catch(e => $('#awards').innerHTML = `<p class="muted">${esc(e.message)}</p>`);
   const reload = () => pageMeetup(id);
   const run = (el, fn) => busy(el, async () => { await fn(); await reload(); });
@@ -1273,20 +1280,99 @@ async function pageGameForm(editId, meetupId) {
   if ($('#gdel')) $('#gdel').onclick = e => { if (confirm('Delete this game? Ratings are recalculated without it.')) busy(e.target, async () => { await rpc('game_delete', { p_id: g.id }); location.hash = 'games'; }); };
 }
 
+// ---------- monthly painting challenge ----------
+const londonToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' });
+const monthLabel = m => new Date(m + 'T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+const lastDay = m => { const d = new Date(m + 'T00:00:00'); return new Date(d.getFullYear(), d.getMonth() + 1, 0); };
+// Who still owes a round: in a finished month, didn't opt out, didn't finish, round not marked bought.
+function roundsOwed(chals, entries, curMonth) {
+  const out = [];
+  chals.filter(c => c.month < curMonth && c.theme).forEach(c => Object.keys(PEOPLE).forEach(u => {
+    const e = entries.find(x => x.month === c.month && x.user_id === u);
+    if (!e || (!e.opted_out && !e.finished_at && !e.round_bought_at)) out.push({ month: c.month, user_id: u, theme: c.theme });
+  }));
+  return out;
+}
+async function loadChallenges() {
+  await rpc('paint_challenge_tick').catch(() => {});
+  const [chals, entries] = await Promise.all([
+    sb.from('paint_challenges').select('*').order('month', { ascending: false }).then(ok),
+    sb.from('paint_challenge_entries').select('*').then(ok),
+  ]);
+  return { chals, entries, cur: londonToday().slice(0, 7) + '-01' };
+}
+function roundsOwedHtml(owed) {
+  return owed.length ? `<table>${owed.map(o => `<tr><td>${who(o.user_id)}</td><td class="muted" style="font-size:13px">${monthLabel(o.month)}: ${esc(o.theme)}</td>
+    <td style="text-align:right"><button class="btn small ghost" data-rb="${o.month}|${o.user_id}">🍺 Round bought</button></td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Nobody owes a round. Suspicious.</p>';
+}
+function wireRounds(el, reload) {
+  $$('[data-rb]', el).forEach(b => b.onclick = () => { const [m, u] = b.dataset.rb.split('|');
+    busy(b, async () => { await rpc('challenge_round_bought', { p_month: m, p_user: u, p_bought: true }); toast('Cheers 🍺'); await reload(); }); });
+}
+
+async function challengeCards(el) {
+  const { chals, entries, cur } = await loadChallenges();
+  const c = chals.find(x => x.month === cur), next = chals.find(x => x.month > cur);
+  const ent = (m, u) => entries.find(e => e.month === m && e.user_id === u);
+  const mine = c && ent(cur, me.id), done = mine?.finished_at;
+  const end = lastDay(cur), daysLeft = Math.round((end - new Date(londonToday() + 'T00:00:00')) / 864e5) + 1;
+  const canPick = x => x && !x.theme && (x.setter === me.id || me.is_admin);
+  const pickForm = (x, id) => `<form class="row" data-pick="${x.month}" style="margin-top:10px"><input type="text" maxlength="120" required placeholder="e.g. A character, Something with wings, A vehicle" class="grow" id="${id}"><button class="btn small">Set the challenge</button></form>
+    ${me.is_admin ? `<div class="row" style="margin-top:8px"><span class="muted" style="font-size:13px">Give the turn to</span><select data-setter="${x.month}" style="padding:6px;background:#110e0c;color:var(--text);border:1px solid var(--line);border-radius:6px">${Object.values(PEOPLE).sort((a, b) => a.display_name.localeCompare(b.display_name)).map(p => `<option value="${p.id}" ${p.id === x.setter ? 'selected' : ''}>${esc(p.display_name)}</option>`).join('')}</select></div>` : ''}`;
+  const past = chals.filter(x => x.month < cur && x.theme);
+  const owed = roundsOwed(chals, entries, cur);
+  el.innerHTML = `
+  <div class="card" style="border-color:var(--gold)">
+    <div class="row"><h2 class="grow" style="margin:0">${monthLabel(cur)} challenge</h2>${c?.setter ? `<span class="muted" style="font-size:13px">${who(c.setter)}'s pick</span>` : ''}</div>
+    ${c?.theme ? `<div class="big-name" style="font-size:clamp(22px,4vw,32px);margin:10px 0 4px">${esc(c.theme)}</div>
+      <p class="muted" style="margin:0">Upload a photo of the finished unit by midnight on ${end.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} (${daysLeft} day${daysLeft === 1 ? '' : 's'} left), or buy a round at the next meetup.</p>`
+      : `<p style="margin:10px 0 0">Waiting for ${who(c?.setter)} to pick this month's theme.</p>${canPick(c) ? pickForm(c, 'pk1') : ''}`}
+    ${c ? `<table style="margin-top:14px">${Object.keys(PEOPLE).sort((a, b) => PEOPLE[a].display_name.localeCompare(PEOPLE[b].display_name)).map(u => { const e = ent(cur, u);
+      return `<tr style="${e?.opted_out ? 'opacity:.45' : ''}"><td>${who(u)}</td><td class="muted" style="font-size:13px">${e?.opted_out ? 'sitting this one out' : esc(e?.unit || '')}</td>
+        <td style="text-align:right">${e?.finished_at ? `<img src="${photoUrl(e.photo_path)}" alt="" data-zoom="${photoUrl(e.photo_path)}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;cursor:zoom-in;vertical-align:middle"> ✅` : e?.opted_out ? '' : '⏳'}</td></tr>`; }).join('')}</table>` : ''}
+    ${c?.theme && !mine?.opted_out ? (done ? `<p style="margin:12px 0 0;color:var(--ok)"><b>✅ You're done this month.</b></p>` : `
+      <form id="chf" style="margin-top:14px"><h3>Your entry</h3>
+        <div class="row"><div class="grow"><label for="chu">What are you painting?</label><input type="text" id="chu" maxlength="120" value="${esc(mine?.unit || '')}" placeholder="e.g. Captain on Bike"></div>
+          <div style="width:100px"><label for="chm">Models</label><input type="number" id="chm" min="1" max="500" value="1"></div></div>
+        <label for="chp">Photo of the finished unit</label><input type="file" id="chp" accept="image/*">
+        <div class="row" style="margin-top:12px"><button class="btn" id="chgo" style="margin:0">Finished! Upload it</button><button type="button" class="btn ghost" id="chsave" style="margin:0">Just save what I'm painting</button></div></form>`) : ''}
+  </div>
+  ${next ? `<div class="card"><div class="row"><h2 class="grow" style="margin:0">Next: ${monthLabel(next.month)}</h2>${next.setter ? `<span class="muted" style="font-size:13px">${who(next.setter)}'s pick</span>` : ''}</div>
+    <p style="margin:8px 0 0">${next.theme ? `Theme: <b>${esc(next.theme)}</b>` : `${who(next.setter)} hasn't picked yet.`}</p>${canPick(next) ? pickForm(next, 'pk2') : ''}
+    <p class="muted" style="font-size:13px">Everyone's in unless they opt out before it starts.</p>
+    <button class="btn small ghost" id="chopt">${ent(next.month, me.id)?.opted_out ? 'I\'m back in' : 'Sit next month out'}</button></div>` : ''}
+  <div class="card"><h2>🍺 Rounds owed</h2>${roundsOwedHtml(owed)}</div>
+  ${past.length ? `<div class="card"><h2>Past challenges</h2><table>${past.map(x => { const fin = Object.keys(PEOPLE).filter(u => ent(x.month, u)?.finished_at), out = Object.keys(PEOPLE).filter(u => ent(x.month, u)?.opted_out);
+    const lost = Object.keys(PEOPLE).filter(u => !fin.includes(u) && !out.includes(u));
+    return `<tr><td style="white-space:nowrap" class="muted">${monthLabel(x.month)}</td><td><b>${esc(x.theme)}</b> <span class="muted" style="font-size:13px">(${who(x.setter, esc(PEOPLE[x.setter]?.display_name || '?'))}'s pick)</span><br>
+      ${fin.map(u => `<img src="${photoUrl(ent(x.month, u).photo_path)}" alt="" title="${esc(PEOPLE[u].display_name)}" data-zoom="${photoUrl(ent(x.month, u).photo_path)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:zoom-in;margin:4px 4px 0 0">`).join('')}
+      ${lost.length ? `<br><span style="font-size:13px;color:#e0a070">Missed it: ${lost.map(u => esc(PEOPLE[u].display_name)).join(', ')}</span>` : '<br><span style="font-size:13px;color:var(--ok)">Everyone finished</span>'}</td></tr>`; }).join('')}</table></div>` : ''}`;
+
+  const reload = () => challengeCards(el);
+  $$('[data-zoom]', el).forEach(i => i.onclick = () => lightbox(i.dataset.zoom, ''));
+  wireRounds(el, reload);
+  $$('[data-pick]', el).forEach(f => f.onsubmit = ev => { ev.preventDefault(); busy(f.querySelector('button'), async () => {
+    await rpc('challenge_set_theme', { p_month: f.dataset.pick, p_theme: f.querySelector('input').value.trim() }); toast('Challenge set. Everyone gets an email'); await reload(); }); });
+  $$('[data-setter]', el).forEach(s => s.onchange = () => busy(s, async () => { await rpc('challenge_set_setter', { p_month: s.dataset.setter, p_user: s.value }); await reload(); }));
+  if ($('#chopt', el)) $('#chopt', el).onclick = e => busy(e.target, async () => { await rpc('challenge_opt_out', { p_month: next.month, p_out: !ent(next.month, me.id)?.opted_out }); await reload(); });
+  if ($('#chsave', el)) $('#chsave', el).onclick = e => busy(e.target, async () => { await rpc('challenge_declare', { p_month: cur, p_unit: $('#chu').value.trim() }); toast('Saved'); await reload(); });
+  if ($('#chf', el)) $('#chf', el).onsubmit = ev => { ev.preventDefault(); busy($('#chgo'), async () => {
+    const f = $('#chp').files[0]; if (!f) throw new Error('Add a photo of the finished unit');
+    const path = await uploadPhoto(f, 'paint', cur.slice(0, 4));
+    await rpc('challenge_finish', { p_month: cur, p_unit: $('#chu').value.trim(), p_photo: path, p_models: +$('#chm').value || 1 });
+    toast('Done! No round for you'); await pagePainting(); }); };
+}
+
 // ---------- painting ----------
 async function pagePainting() {
   const month = todayISO().slice(0, 7) + '-01';
-  const [log, pledges] = await Promise.all([
-    sb.from('paint_log').select('*').order('painted_on', { ascending: false }).order('created_at', { ascending: false }).limit(300).then(ok),
-    sb.from('paint_pledges').select('*').eq('month', month).then(ok),
-  ]);
+  const log = await sb.from('paint_log').select('*').order('painted_on', { ascending: false }).order('created_at', { ascending: false }).limit(300).then(ok);
   const yr = log.filter(x => x.painted_on.startsWith(String(THIS_YEAR))), mo = log.filter(x => x.painted_on.startsWith(month.slice(0, 7)));
   const tally = rows => { const t = {}; rows.forEach(x => t[x.user_id] = (t[x.user_id] || 0) + x.models); return t; };
-  const ty = tally(yr), tm = tally(mo), myPledge = pledges.find(p => p.user_id === me.id);
-  const monthName = new Date(month + 'T00:00:00').toLocaleDateString('en-GB', { month: 'long' });
-  const daysLeft = new Date(new Date(month).getFullYear(), new Date(month).getMonth() + 1, 0).getDate() - new Date().getDate();
+  const ty = tally(yr);
   app.innerHTML = `<div class="row"><h1 class="grow" style="margin:0">Painting</h1></div>
-  <div class="grid" style="margin-top:14px">
+  <div id="chal" style="margin-top:14px"><div class="card"><p class="muted" style="margin:0">Loading the challenge…</p></div></div>
+  <div class="grid">
     <div class="card"><h2>Log something painted</h2><form id="plf">
       <label for="plt">What?</label><input type="text" id="plt" maxlength="120" required placeholder="e.g. 10 Necron Warriors, or Doomstalker">
       <div class="row"><div style="width:110px"><label for="pln">Models</label><input type="number" id="pln" min="1" max="500" value="1" required></div>
@@ -1294,12 +1380,6 @@ async function pagePainting() {
       <div class="row"><div><label for="pld">Finished on</label><input type="date" id="pld" value="${todayISO()}"></div></div>
       <label for="plp">Photo (optional, goes in the gallery)</label><input type="file" id="plp" accept="image/*">
       <button class="btn" id="plgo">Log it</button></form></div>
-    <div class="card"><h2>${monthName} pledges</h2>
-      <p class="muted" style="margin-top:0;font-size:13px">Promise a number of models this month. ${daysLeft} day${daysLeft === 1 ? '' : 's'} left.</p>
-      ${pledges.length ? `<table>${pledges.sort((a, b) => (tm[b.user_id] || 0) / b.target - (tm[a.user_id] || 0) / a.target).map(p => { const done = tm[p.user_id] || 0, pct = Math.min(100, Math.round(100 * done / p.target));
-        return `<tr><td style="width:40%">${who(p.user_id)}</td><td><div style="background:#110e0c;border-radius:6px;height:12px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${done >= p.target ? 'var(--ok)' : 'var(--gold)'}"></div></div></td><td style="text-align:right;white-space:nowrap">${done}/${p.target}${done >= p.target ? ' ✅' : ''}</td></tr>`; }).join('')}</table>` : '<p class="muted">Nobody has pledged yet.</p>'}
-      <form id="ppf2" class="row" style="margin-top:10px"><span>I'll paint</span><input type="number" id="ppn" min="1" max="500" value="${myPledge?.target || ''}" style="width:90px" required><span>models in ${monthName}</span><button class="btn small" id="ppgo2">${myPledge ? 'Update' : 'Pledge'}</button>
-        ${myPledge ? '<button type="button" class="btn small ghost" id="ppdel">Withdraw</button>' : ''}</form></div>
     <div class="card"><h2>${THIS_YEAR} so far</h2>
       ${Object.keys(ty).length ? `<table>${Object.entries(ty).sort((a, b) => b[1] - a[1]).map(([u, n], i) => `<tr><td>${i === 0 ? '🏆' : i + 1}</td><td>${who(u)}</td><td style="text-align:right"><b>${n}</b> models</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Nothing painted this year yet.</p>'}</div>
   </div>
@@ -1315,8 +1395,7 @@ async function pagePainting() {
     ok(await sb.from('paint_log').insert({ user_id: me.id, title: $('#plt').value.trim(), models: +$('#pln').value, faction: $('#plfac').value.trim(), painted_on: d, photo_path: path }));
     toast('Logged. Nice work'); await reload();
   }); };
-  $('#ppf2').onsubmit = e => { e.preventDefault(); busy($('#ppgo2'), async () => { ok(await sb.from('paint_pledges').upsert({ user_id: me.id, month, target: +$('#ppn').value })); await reload(); }); };
-  if ($('#ppdel')) $('#ppdel').onclick = e => busy(e.target, async () => { ok(await sb.from('paint_pledges').delete().eq('user_id', me.id).eq('month', month)); await reload(); });
+  challengeCards($('#chal')).catch(e => $('#chal').innerHTML = `<div class="card muted">${esc(e.message)}</div>`);
   $$('[data-pldel]').forEach(a => a.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); if (confirm('Remove this entry?')) busy(a, async () => { ok(await sb.from('paint_log').delete().eq('id', a.dataset.pldel)); await reload(); }); });
   $$('.mini[data-src]').forEach(el => el.onclick = ev => { if (ev.target.closest('a')) return; lightbox(el.dataset.src, ''); });
 }

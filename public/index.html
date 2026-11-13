@@ -191,10 +191,10 @@ async function pageRedeem(kind, token) {
 async function pageHome() {
   const [people, assignments] = await Promise.all([
     sb.from('profiles').select('id,display_name,birthday').then(ok),
-    sb.from('ss_assignments').select('year, receiver_id, photo_path').eq('giver_id', me.id).order('year', { ascending: false }).limit(1).then(ok),
+    sb.from('ss_assignments').select('year, receiver_id, photo_path, completed_at').eq('giver_id', me.id).order('year', { ascending: false }).limit(1).then(ok),
   ]);
   const bdays = people.map(p => ({ ...p, nb: nextBirthday(p.birthday) })).filter(p => p.nb).sort((a, b) => a.nb.days - b.nb.days);
-  const santa = assignments[0];
+  const santa = assignments.find(x => x.year === THIS_YEAR || !x.completed_at);
   const nm = await nextMeetup();
   const vdir = await rpc('ventures_directory');
   const vAsk = vdir.filter(v => v.stage === 'proposal' && !v.my_response), vMine = vdir.filter(v => v.i_am_member && ['chartering', 'active'].includes(v.stage));
@@ -273,8 +273,11 @@ async function pageSanta() {
       sb.from('profiles').select('id,display_name,wishlist,armies').then(ok),
     ]);
     const who = id => people.find(p => p.id === id) || {};
-    const g = rows[0];
-    if (!g) { el.innerHTML = `<div class="card"><h2>No draw yet</h2><p class="muted">The organiser hasn't run the draw. Make sure your <a href="#profile" style="color:var(--gold)">wishlist</a> is up to date so your Santa knows what to paint.</p></div>`; return; }
+    const g = rows.find(x => x.year === THIS_YEAR || !x.completed_at);
+    const past = rows.filter(x => x !== g);
+    const pastCard = past.length ? `<div class="card"><h2>Years past</h2><table><tr><th>Year</th><th>Painted for</th><th>Model</th></tr>
+      ${past.map(x => `<tr><td>${x.year}</td><td>${esc(who(x.receiver_id).display_name)}</td><td>${esc(x.model_name || '—')}</td></tr>`).join('')}</table></div>` : '';
+    if (!g) { el.innerHTML = `<div class="card"><h2>No draw yet</h2><p class="muted">The organiser hasn't run the ${THIS_YEAR} draw. Make sure your <a href="#profile" style="color:var(--gold)">wishlist</a> is up to date so your Santa knows what to paint.</p></div>${pastCard}`; return; }
     const r = who(g.receiver_id);
     el.innerHTML = `<div class="card">
       <span class="pill gold">${g.year}</span>
@@ -291,8 +294,7 @@ async function pageSanta() {
       <button class="btn" id="msubmit">${g.photo_path ? 'Update' : 'Submit to the gallery'}</button>
       <p class="muted" style="font-size:13px">The gallery stays hidden until the organiser reveals ${g.year}, so uploading early won't spoil anything.</p>
     </div>
-    ${rows.length > 1 ? `<div class="card"><h2>Years past</h2><table><tr><th>Year</th><th>Painted for</th><th>Model</th></tr>
-      ${rows.slice(1).map(x => `<tr><td>${x.year}</td><td>${esc(who(x.receiver_id).display_name)}</td><td>${esc(x.model_name || '—')}</td></tr>`).join('')}</table></div>` : ''}`;
+    ${pastCard}`;
     $('#mphoto').onchange = () => { const f = $('#mphoto').files[0]; if (f) { const p = $('#mprev'); p.src = URL.createObjectURL(f); p.classList.remove('hidden'); } };
     $('#msubmit').onclick = e => busy(e.target, async () => {
       const name = $('#mname').value.trim(), f = $('#mphoto').files[0];

@@ -19,5 +19,9 @@ export default {
     }
     return res;
   },
-  async scheduled(event, env, ctx) { ctx.waitUntil(rpc('ping')); },
+  // 06:17 daily: keep Supabase awake + open birthday gift plans. Every 5 min: send queued notification emails.
+  async scheduled(event, env, ctx) {
+    if (event.cron === '17 6 * * *') ctx.waitUntil(rpc('ping'));
+    else ctx.waitUntil(fetch(SB + '/functions/v1/email', { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: '{"action":"outbox"}' }));
+  },
 };

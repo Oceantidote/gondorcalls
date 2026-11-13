@@ -19,8 +19,13 @@ Planning and decisions live in the site's own vault project, not here.
   `#invite=` / `#reset=` links working.
 - **Secrecy model:** tables have RLS; anything one member must not see uses `hidden_from uuid[]` + `can_see()`.
   Secret Santa assignments are readable only by the giver; the draw runs server-side in `ss_run_draw()`.
-- **No email is sent.** Supabase's built-in mailer only delivers to the project's own team, so invites and
-  resets are links the admin shares by hand. Reminder emails need a sending domain (gondorcalls.com can be one).
+- **Email** goes through Resend from `hello@gondorcalls.com` (DKIM/return-path records and a monitoring-only
+  DMARC in Cloudflare DNS; API key in the Supabase secret `RESEND_API_KEY`). Edge function `email`:
+  `invite` (admin, emails a join link), `forgot` (public, emails a 2-hour reset link, max 3 an hour),
+  `outbox` (sends what database triggers queued in `email_outbox`; the Worker calls it every 5 minutes).
+  Notifications: new proposal, venture launched / live, new meetup, gift plan opened (never to the birthday
+  person), gift bought (pay the buyer back), Secret Santa drawn (no names), task assigned. Members can opt
+  out on their profile; invites and resets always send. Supabase Auth's own mailer is not used.
 
 ## Deploying
 

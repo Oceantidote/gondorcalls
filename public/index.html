@@ -86,9 +86,10 @@ const photoUrl = p => sb.storage.from('models').getPublicUrl(p).data.publicUrl;
 const inviteLink = (kind, t) => `${location.origin}/#${kind}=${t}`;
 async function copy(text) { try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Copy failed: select the link and copy it by hand', true); } }
 
-async function invite(body) {
-  const r = await fetch('https://vhlalqnxkasijbspyrrp.supabase.co/functions/v1/invite', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: 'sb_publishable_g2Oe_3tlYEittwgGjF94AQ_vvhB5wDf' }, body: JSON.stringify(body) });
+async function invite(body, fn = 'invite') {
+  const { data: { session } } = await sb.auth.getSession();
+  const r = await fetch('https://vhlalqnxkasijbspyrrp.supabase.co/functions/v1/' + fn, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: 'sb_publishable_g2Oe_3tlYEittwgGjF94AQ_vvhB5wDf', ...(session ? { Authorization: 'Bearer ' + session.access_token } : {}) }, body: JSON.stringify(body) });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || 'Something went wrong');
   return d;
@@ -150,10 +151,17 @@ function pageLogin() {
     <form id="f"><label for="em">Email</label><input type="email" id="em" autocomplete="email" required>
     <label for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" required>
     <button class="btn" id="go">Sign in</button></form>
-    <p class="muted" style="font-size:13px">Forgotten your password? Ask the organiser for a reset link.</p></div>`;
+    <p class="muted" style="font-size:13px"><a href="#" id="forgot" style="color:var(--gold)">Forgotten your password?</a></p>
+    <form id="ff2" class="hidden"><p class="muted" style="font-size:13px;margin:0">We'll email you a link to choose a new one.</p>
+      <div class="row" style="margin-top:6px"><input type="email" id="fem" class="grow" placeholder="Your email" required><button class="btn small" id="fgo2">Send link</button></div></form></div>`;
   $('#f').onsubmit = e => { e.preventDefault(); busy($('#go'), async () => {
     ok(await sb.auth.signInWithPassword({ email: $('#em').value.trim(), password: $('#pw').value }));
     location.hash = 'home'; route();
+  }); };
+  $('#forgot').onclick = e => { e.preventDefault(); $('#ff2').classList.toggle('hidden'); $('#fem').value = $('#em').value; $('#fem').focus(); };
+  $('#ff2').onsubmit = e => { e.preventDefault(); busy($('#fgo2'), async () => {
+    await invite({ action: 'forgot', email: $('#fem').value }, 'email');
+    $('#ff2').innerHTML = '<p>If that email belongs to a member, a reset link is on its way. It lasts 2 hours. Check spam too.</p>';
   }); };
 }
 async function pageRedeem(kind, token) {
@@ -236,12 +244,13 @@ async function pageProfile() {
     <label for="bd">Birthday</label><input type="date" id="bd" value="${esc(me.birthday || '')}">
     <label for="ar">Armies you collect</label><textarea id="ar" maxlength="500" placeholder="e.g. Ultramarines, Stormcast, a Kill Team or two">${esc(me.armies)}</textarea>
     <label for="wl">Wishlist</label><textarea id="wl" maxlength="2000" placeholder="Models you'd love, colour schemes, things you already own. Used for Secret Santa and birthdays.">${esc(me.wishlist)}</textarea>
+    <label style="display:flex;gap:8px;align-items:center;font-weight:500;margin-top:16px;color:var(--text)"><input type="checkbox" id="en" ${me.email_notifications !== false ? 'checked' : ''}> Email me about new proposals, meetups, gift plans, Secret Santa draws and tasks given to me</label>
     <button class="btn" id="save">Save</button></form></div>
   <div class="card"><h2>Change password</h2><form id="pwf">
     <label for="pw">New password (8+ characters)</label><input type="password" id="pw" minlength="8" autocomplete="new-password" required>
     <button class="btn ghost" id="pwgo">Change password</button></form></div>`;
   $('#pf').onsubmit = e => { e.preventDefault(); busy($('#save'), async () => {
-    const upd = { display_name: $('#nm').value.trim(), birthday: $('#bd').value || null, armies: $('#ar').value, wishlist: $('#wl').value };
+    const upd = { display_name: $('#nm').value.trim(), birthday: $('#bd').value || null, armies: $('#ar').value, wishlist: $('#wl').value, email_notifications: $('#en').checked };
     ok(await sb.from('profiles').update(upd).eq('id', me.id));
     Object.assign(me, upd); toast('Profile saved'); drawNav('profile');
   }); };
@@ -1012,8 +1021,8 @@ async function pageAdmin() {
   const hasThisYear = draws.some(d => d.year === THIS_YEAR);
   app.innerHTML = `<h1>Admin</h1>
   <div class="card"><h2>Invite someone</h2>
-    <p class="muted" style="margin-top:0">Creates a one-off link that's valid for 14 days. Send it to them privately: whoever opens it can create an account.</p>
-    <div class="row"><input type="text" id="invname" class="grow" placeholder="Their name (optional)" maxlength="40"><button class="btn small" id="invgo">Create invite link</button></div>
+    <p class="muted" style="margin-top:0">Creates a one-off link that's valid for 14 days. Add their email and we'll send it to them; otherwise copy the link and send it privately. Whoever opens it can create an account.</p>
+    <div class="row"><input type="text" id="invname" class="grow" placeholder="Their name (optional)" maxlength="40"><input type="email" id="invemail" class="grow" placeholder="Their email (optional)"><button class="btn small" id="invgo">Create invite</button></div>
     <div id="invout"></div>
     ${invites.length ? `<h3 style="margin-top:18px">Unused links</h3><table>${invites.map(i => `<tr><td>${i.kind === 'join' ? 'Invite' : 'Password reset'}${i.display_name || i.target ? ': ' + esc(i.display_name || i.target) : ''}</td>
       <td class="muted">expires ${new Date(i.expires_at).toLocaleDateString('en-GB')}</td>
@@ -1035,8 +1044,14 @@ async function pageAdmin() {
   </div>`;
   const showLink = (label, url) => { $('#invout').innerHTML = `<p>${label}</p><div class="linkbox">${esc(url)}</div><button class="btn small" style="margin-top:8px" id="cp">Copy</button>`; $('#cp').onclick = () => copy(url); $('#invout').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   $('#invgo').onclick = e => busy(e.target, async () => {
-    const t = await rpc('admin_create_invite', { p_kind: 'join', p_display_name: $('#invname').value, p_user: null });
-    await pageAdmin(); showLink('Invite link created. Send it privately:', inviteLink('invite', t));
+    const email = $('#invemail').value.trim();
+    if (email) {
+      const r = await invite({ action: 'invite', email, display_name: $('#invname').value }, 'email');
+      await pageAdmin(); showLink(`Invite emailed to ${esc(email)}. The link, in case it ends up in spam:`, inviteLink('invite', r.token));
+    } else {
+      const t = await rpc('admin_create_invite', { p_kind: 'join', p_display_name: $('#invname').value, p_user: null });
+      await pageAdmin(); showLink('Invite link created. Send it privately:', inviteLink('invite', t));
+    }
   });
   $$('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy));
   $$('[data-revoke]').forEach(b => b.onclick = () => busy(b, async () => { await rpc('admin_revoke_invite', { p_token: b.dataset.revoke }); pageAdmin(); }));

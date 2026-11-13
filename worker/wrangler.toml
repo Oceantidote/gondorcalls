@@ -4,10 +4,10 @@ compatibility_date = "2026-11-01"
 account_id = "3afe6df41fb0880243917e5d04d1fa99"
 workers_dev = false
 
+# The apex is served by the Cloudflare Pages project; the Worker only owns www (301 → apex) and the crons.
 routes = [
-  { pattern = "gondorcalls.com", custom_domain = true },
   { pattern = "www.gondorcalls.com", custom_domain = true },
 ]
 
 [triggers]
-crons = ["17 6 * * *"]
+crons = ["17 6 * * *", "*/5 * * * *"]

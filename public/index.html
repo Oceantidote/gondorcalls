@@ -1029,14 +1029,16 @@ async function pageAdmin() {
       <td style="text-align:right"><button class="btn small ghost" data-copy="${inviteLink(i.kind === 'join' ? 'invite' : 'reset', i.token)}">Copy link</button>
       <button class="btn small danger" data-revoke="${i.token}">Cancel</button></td></tr>`).join('')}</table>` : ''}
   </div>
-  <div class="card"><h2>Members</h2><table><tr><th>Name</th><th>Secret Santa</th><th></th></tr>
+  <div class="card"><h2>Members</h2><table><tr><th>Name</th><th></th></tr>
     ${people.map(p => `<tr><td>${esc(p.display_name)}${p.is_admin ? ' <span class="pill gold">admin</span>' : ''}</td>
-      <td><button class="btn small ${p.santa_active ? '' : 'ghost'}" data-active="${p.id}" data-to="${!p.santa_active}">${p.santa_active ? 'In' : 'Sitting out'}</button></td>
       <td style="text-align:right"><button class="btn small ghost" data-reset="${p.id}">Password reset link</button></td></tr>`).join('')}</table></div>
   <div class="card"><h2>Secret Santa draw</h2>
     <p class="muted" style="margin-top:0">Runs on the server, and nobody (including you) sees the full list. With N people, nobody repeats a person within N−1 years. It also avoids two people simply swapping where it can.</p>
-    <div class="row"><input type="number" id="dyear" value="${hasThisYear ? THIS_YEAR + 1 : THIS_YEAR}" style="width:110px">
+    <h3>Who's in this year</h3>
+    <div class="row" style="gap:8px 18px">${people.map(p => `<label style="display:flex;gap:6px;align-items:center;margin:0;color:var(--text);font-weight:500"><input type="checkbox" data-in="${p.id}" ${p.santa_active ? 'checked' : ''}> ${esc(p.display_name)}</label>`).join('')}</div>
+    <div class="row" style="margin-top:12px"><input type="number" id="dyear" value="${hasThisYear ? THIS_YEAR + 1 : THIS_YEAR}" style="width:110px">
       <button class="btn small" id="drawgo">Draw ${people.filter(p => p.santa_active).length} people</button></div>
+    <div id="drawconfirm"></div>
     <div id="drawres"></div>
     ${draws.length ? `<table style="margin-top:12px">${draws.map(d => `<tr><td>${d.year}</td><td>${d.finished} / ${d.people} finished</td><td style="text-align:right">
       <button class="btn small ${d.revealed ? 'ghost' : ''}" data-reveal="${d.year}" data-to="${!d.revealed}">${d.revealed ? 'Hide gallery' : 'Reveal gallery'}</button>
@@ -1065,11 +1067,25 @@ async function pageAdmin() {
     if (b.dataset.armed) return busy(b, async () => { await rpc('ss_delete_draw', { p_year: +b.dataset.del }); pageAdmin(); });
     b.dataset.armed = 1; b.textContent = 'Click again to delete';
   });
-  $('#drawgo').onclick = e => busy(e.target, async () => {
+  // ticking someone in or out saves straight away; the draw uses whoever is ticked
+  $$('[data-in]').forEach(c => c.onchange = async () => {
+    c.disabled = true;
+    try { await rpc('admin_set_santa_active', { p_user: c.dataset.in, p_active: c.checked }); const p = people.find(x => x.id === c.dataset.in); p.santa_active = c.checked; }
+    catch (err) { c.checked = !c.checked; toast(err.message, true); }
+    c.disabled = false;
+    $('#drawgo').textContent = `Draw ${people.filter(p => p.santa_active).length} people`; $('#drawconfirm').innerHTML = '';
+  });
+  $('#drawgo').onclick = () => {
+    const ins = people.filter(p => p.santa_active), out = people.filter(p => !p.santa_active);
+    $('#drawconfirm').innerHTML = `<div class="notes" style="margin-top:12px">Draw <b>${+$('#dyear').value}</b> for <b>${ins.map(p => esc(p.display_name)).join(', ')}</b>${out.length ? `, with ${out.map(p => esc(p.display_name)).join(', ')} sitting out` : ''}? Everyone in it gets an email within 5 minutes.
+      <div class="row" style="margin-top:10px"><button class="btn small" id="drawyes">Yes, draw it</button><button class="btn small ghost" id="drawno">Cancel</button></div></div>`;
+    $('#drawno').onclick = () => $('#drawconfirm').innerHTML = '';
+    $('#drawyes').onclick = e => busy(e.target, async () => {
     const r = await rpc('ss_run_draw', { p_year: +$('#dyear').value });
     await pageAdmin();
-    $('#drawres').innerHTML = `<p>✅ ${r.year} drawn for ${r.people} people. ${r.repeat_pairs ? `${r.repeat_pairs} pairing(s) had happened before; the most recent was ${r.shortest_gap_years} year(s) ago, and that was the best possible.` : 'Every pairing is brand new.'}</p>`;
-  });
+    $('#drawres').innerHTML = `<p>✅ ${r.year} drawn for ${r.people} people. ${r.repeat_pairs ? `${r.repeat_pairs} pairing(s) had happened before; the most recent was ${r.shortest_gap_years} year(s) ago, and that was the best possible.` : 'Every pairing is brand new.'} Made a mistake? "Delete draw" below also cancels the emails if they haven't gone yet.</p>`;
+    });
+  };
 }
 
 route();
